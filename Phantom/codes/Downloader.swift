@@ -8,83 +8,194 @@
 
 import Foundation
 
-public typealias ProgressHandler = (currentData: NSData, currentSize: Double, totalSize: Double) -> Void
+public typealias ProgressHandler = (currentSize: Int64, totalRecievedSize: Int64, totalExpectedSize: Int64) -> Void
 public typealias CompletionHandler = (result: Result) -> Void
 
+public typealias TaskGenerator = (url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) -> (task: Task, saveToDisk: Bool)
+
 public enum Result {
-    case Success(data: NSData)
-    case Faild(error: ErrorType?)
-    case Canceled
+    case Success(url: NSURL, data: NSData)
+    case Faild(url: NSURL, error: ErrorType?)
+    case Cancelled(url: NSURL)
 }
 
 public protocol Task: class {
+    var cancelled: Bool { get }
     func cancel()
 }
 
 public protocol Downloader {
     func download(url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) -> Task?
-    func taskForURL(url: NSURL) -> Task?
+    func download(url: NSURL, cache: Cache?, progress: ProgressHandler?, completion: CompletionHandler) -> Task?
+    func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: ProgressHandler?, completion: CompletionHandler) -> Task?
+}
+
+public extension Downloader {
+    func download(url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) -> Task? {
+        return download(url, taskGenerator: nil, cache: nil, progress: progress, completion: completion)
+    }
+    
+    func download(url: NSURL, cache: Cache?, progress: ProgressHandler?, completion: CompletionHandler) -> Task? {
+        return download(url, taskGenerator: nil, cache: cache, progress: progress, completion: completion)
+    }
 }
 
 
 // MARK: - extension NSURLSessionTask
-extension NSURLSessionTask: Task {}
+extension NSURLSessionTask: Task {
+    static private var TaskDelegateKey = "kaizei.yimi.Phantom.TaskDelegateKey"
+    private var taskDelegate: TaskDelegate? {
+        get { return objc_getAssociatedObject(self, &NSURLSessionTask.TaskDelegateKey) as? TaskDelegate }
+        set { objc_setAssociatedObject(self, &NSURLSessionTask.TaskDelegateKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+    
+    public var cancelled: Bool {
+        return state == .Canceling
+    }
+}
 
+extension NSOperation: Task {}
+
+
+// MARK: - sharedDownloader
 public var sharedDownloader: Downloader = {
    return DefaultDownloader()
 }()
 
 
-// MARK: DefaultDownloader
+// MARK: - DefaultDownloader
 public class DefaultDownloader: Downloader {
     
-    private struct WeakWrapper {
-        weak var task: Task?
+    private let queue = dispatch_queue_create("Phantom.defaultDownloader", DISPATCH_QUEUE_CONCURRENT)
+    private let operationQueue = NSOperationQueue()
+    lazy private var session: NSURLSession = {
+        let session = NSURLSession(configuration: .defaultSessionConfiguration(),
+            delegate: URLSessionDelegate(queue: self.queue),
+            delegateQueue: self.operationQueue)
+        return session
+    }()
+    
+    public init(){}
+    
+    deinit {
+        session.invalidateAndCancel()
     }
     
-    private let queue = dispatch_queue_create("Phantom.defaultDownloader", DISPATCH_QUEUE_SERIAL)
-    private var tasks: [NSURL: WeakWrapper] = [:]
-    private var cache: Cache {
-        return sharedCache
-    }
-    
-    public func download(url: NSURL, progress: ProgressHandler? = nil, completion: CompletionHandler) -> Task? {
-        var task: Task?
-        dispatch_sync(queue) {
-            self.tasks.removeValueForKey(url)?.task?.cancel()
-            if let data = self.cache.cacheFromMemory(url) {
-                completion(result: .Success(data: data))
-            } else {
-                if let current = self.tasks[url]?.task {
-                    task = current
+    public func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: ProgressHandler?, completion: CompletionHandler) -> Task? {
+            var task: Task?
+            let taskGenerator: TaskGenerator! = (taskGenerator == nil ? taskForURL : taskGenerator)
+            dispatch_sync(queue) { [queue, operationQueue] in
+                if let data = cache?.cacheFromMemory(url) {
+                    completion(result: .Success(url: url, data: data))
                 } else {
-                    
-                    let sessionTask = NSURLSession.sharedSession().downloadTaskWithURL(url) {
-                        [weak self] (diskURL, _, error) -> Void in
-                        guard let this = self else { return }
-                        dispatch_sync(this.queue) {
-                            this.tasks.removeValueForKey(url)
-                            if let diskURL = diskURL, data = NSData(contentsOfURL: diskURL) {
-                                completion(result: .Success(data: data))
-                            } else {
-                                completion(result: .Faild(error: error))
+                    let combinedTask = CombinedDownloadTask()
+                    operationQueue.addOperationWithBlock { () -> Void in
+                        if let diskURL = cache?.diskURLForCachedURL(url), data = NSData(contentsOfURL: diskURL) {
+                            dispatch_sync(queue) {
+                                if !combinedTask.cancelled {
+                                    completion(result: .Success(url: url, data: data))
+                                } else {
+                                    completion(result: .Cancelled(url: url))
+                                }
+                            }
+                        } else {
+                            dispatch_sync(queue) {
+                                if !combinedTask.cancelled {
+                                    var taskInfo: (task: Task, saveToDisk: Bool)!
+                                    taskInfo = taskGenerator(url: url, progress: progress,
+                                        completion: { result in
+                                            let _ = combinedTask // delay the task's deinit
+                                            if case .Success(let url, let data) = result {
+                                                cache?.cache(url, data: data, saveToDisk: taskInfo.saveToDisk)
+                                            }
+                                            completion(result: result)
+                                    })
+                                    combinedTask.sessionTask = taskInfo.task
+                                }
                             }
                         }
                     }
-                    self.tasks[url] = WeakWrapper(task: sessionTask)
-                    sessionTask.resume()
-                    task = sessionTask
+                    task = combinedTask
                 }
             }
-        }
-        return task
+            return task
     }
     
-    public func taskForURL(url: NSURL) -> Task? {
-        var task: Task?
+    public func taskForURL(url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) -> (task: Task, saveToDisk: Bool) {
+        let sessionTask = session.downloadTaskWithURL(url)
+        sessionTask.taskDelegate = TaskDelegate(url: url, progress: progress, completion: completion)
+        sessionTask.resume()
+        return (sessionTask, true)
+    }
+    
+}
+
+
+final private class URLSessionDelegate: NSObject, NSURLSessionDownloadDelegate {
+    private var queue: dispatch_queue_t
+    init(queue: dispatch_queue_t) {
+        self.queue = queue
+    }
+    
+    @objc private func URLSession(session: NSURLSession, downloadTask: NSURLSessionDownloadTask, didFinishDownloadingToURL location: NSURL) {
+        guard let data = NSData(contentsOfURL: location) else { return }
         dispatch_sync(queue) {
-            task = self.tasks[url]?.task
+            downloadTask.taskDelegate?.didFinishDownloading(data)
+            downloadTask.taskDelegate = nil
         }
-        return task
+    }
+    
+    @objc private func URLSession(session: NSURLSession, downloadTask: NSURLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        dispatch_sync(queue) {
+            downloadTask.taskDelegate?.didWriteData(bytesWritten: bytesWritten, totalBytesWritten: totalBytesWritten, totalBytesExpectedToWrite: totalBytesExpectedToWrite)
+        }
+    }
+    
+    @objc private func URLSession(session: NSURLSession, task: NSURLSessionTask, didCompleteWithError error: NSError?) {
+        dispatch_sync(queue) {
+            task.taskDelegate?.didCompleteWithError(error)
+            task.taskDelegate = nil
+        }
+    }
+    
+}
+
+
+final private class TaskDelegate {
+    
+    private let url: NSURL
+    private let progress: ProgressHandler?
+    private let completion: CompletionHandler
+    
+    init(url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) {
+        self.progress = progress
+        self.completion = completion
+        self.url = url
+    }
+    
+    @objc private func didFinishDownloading(data: NSData) {
+        completion(result: .Success(url: url, data: data))
+    }
+    
+    @objc private func didCompleteWithError(error: NSError?) {
+        if let error = error where error.domain == NSURLErrorDomain && error.code == NSURLErrorCancelled {
+            completion(result: .Cancelled(url: url))
+        } else {
+            completion(result: .Faild(url: url, error: error))
+        }
+    }
+    
+    @objc private func didWriteData(bytesWritten bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        progress?(currentSize: bytesWritten, totalRecievedSize: totalBytesWritten, totalExpectedSize: totalBytesExpectedToWrite)
+    }
+}
+
+
+final private class CombinedDownloadTask: Task {
+    private var sessionTask: Task?
+    private var cancelled = false
+    private func cancel() {
+        cancelled = true
+        sessionTask?.cancel()
     }
 }
