@@ -8,44 +8,38 @@
 
 import Foundation
 
+public typealias ProgressHandler = (currentData: NSData, currentSize: Double, totalSize: Double) -> Void
+public typealias CompletionHandler = (result: Result) -> Void
+
 public enum Result {
     case Success(data: NSData)
     case Faild(error: ErrorType?)
+    case Canceled
 }
 
-
-public protocol Cancelable: class {
+public protocol Task: class {
     func cancel()
 }
 
 public protocol Downloader {
-    func download(request: NSURLRequest, completion: Result -> Void) throws -> Cancelable?
-    func download(url: NSURL, completion: Result -> Void) -> Cancelable?
-    func taskForURL(url: NSURL) -> Cancelable?
+    func download(url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) -> Task?
+    func taskForURL(url: NSURL) -> Task?
 }
 
-public protocol Cache {
-    func cache(url: NSURL, data: NSData, saveToDisk: Bool)
-    func cacheFromMemory(url: NSURL) -> NSData?
-    func diskURLForCachedURL(url: NSURL) -> NSURL?
-}
 
 // MARK: - extension NSURLSessionTask
-extension NSURLSessionTask: Cancelable {}
+extension NSURLSessionTask: Task {}
 
 public var sharedDownloader: Downloader = {
    return DefaultDownloader()
 }()
 
-public var sharedCache: Cache = {
-    return DefaultCache()
-}()
 
 // MARK: DefaultDownloader
 public class DefaultDownloader: Downloader {
     
     private struct WeakWrapper {
-        weak var task: Cancelable?
+        weak var task: Task?
     }
     
     private let queue = dispatch_queue_create("Phantom.defaultDownloader", DISPATCH_QUEUE_SERIAL)
@@ -54,45 +48,26 @@ public class DefaultDownloader: Downloader {
         return sharedCache
     }
     
-    public init() {
-        NSNotificationCenter.defaultCenter().addObserver(self, selector: "memoryWarning:", name: UIApplicationDidReceiveMemoryWarningNotification, object: nil)
-    }
-    
-    deinit {
-        NSNotificationCenter.defaultCenter().removeObserver(self)
-    }
-    
-    @objc private func memoryWarning(sender: AnyObject) {
-        tasks.filter{ $1.task == nil }.forEach{ tasks.removeValueForKey($0.0) }
-    }
-    
-    public func download(url: NSURL, completion: Result -> Void) -> Cancelable? {
-        return download(NSURLRequest(URL: url), completion: completion)
-    }
-    
-    public func download(request: NSURLRequest, completion: Result -> Void) -> Cancelable? {
-        guard let url = request.URL else {
-            return nil
-        }
-        self.tasks.removeValueForKey(url)?.task?.cancel()
-        var task: Cancelable?
+    public func download(url: NSURL, progress: ProgressHandler? = nil, completion: CompletionHandler) -> Task? {
+        var task: Task?
         dispatch_sync(queue) {
+            self.tasks.removeValueForKey(url)?.task?.cancel()
             if let data = self.cache.cacheFromMemory(url) {
-                completion(.Success(data: data))
+                completion(result: .Success(data: data))
             } else {
                 if let current = self.tasks[url]?.task {
                     task = current
                 } else {
-                    self.tasks.removeValueForKey(url)?.task?.cancel()
-                    let sessionTask = NSURLSession.sharedSession().downloadTaskWithRequest(request) {
+                    
+                    let sessionTask = NSURLSession.sharedSession().downloadTaskWithURL(url) {
                         [weak self] (diskURL, _, error) -> Void in
                         guard let this = self else { return }
                         dispatch_sync(this.queue) {
                             this.tasks.removeValueForKey(url)
                             if let diskURL = diskURL, data = NSData(contentsOfURL: diskURL) {
-                                completion(.Success(data: data))
+                                completion(result: .Success(data: data))
                             } else {
-                                completion(.Faild(error: error))
+                                completion(result: .Faild(error: error))
                             }
                         }
                     }
@@ -105,25 +80,11 @@ public class DefaultDownloader: Downloader {
         return task
     }
     
-    public func taskForURL(url: NSURL) -> Cancelable? {
-        var task: Cancelable?
+    public func taskForURL(url: NSURL) -> Task? {
+        var task: Task?
         dispatch_sync(queue) {
             task = self.tasks[url]?.task
         }
         return task
-    }
-}
-
-
-// MARK: DefaultCache
-public class DefaultCache: Cache {
-    public func cache(url: NSURL, data: NSData, saveToDisk: Bool) {}
-    
-    public func cacheFromMemory(url: NSURL) -> NSData? {
-        return nil
-    }
-    
-    public func diskURLForCachedURL(url: NSURL) -> NSURL? {
-        return nil
     }
 }
