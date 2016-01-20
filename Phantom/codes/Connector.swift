@@ -11,34 +11,77 @@ import Foundation
 
 final public class Connector {
     
-    public weak var currentTask: Task?
+    private weak var task: Task?
+    private var lastURL: NSURL?
     
-    public var downloader: Downloader
-    public var cache: Cache?
+    public var requestIgnoreSameURL = true
+    public var queue = dispatch_get_main_queue()
     public var taskGenerator: TaskGenerator?
     
-    public init(downloader: Downloader = sharedDownloader, cache: Cache? = sharedCache) {
-        self.downloader = downloader
-        self.cache = cache
-    }
+    public init() {}
     
-    public func connect(downloader: Downloader? = nil, cache: Cache? = nil, taskGenerator: TaskGenerator? = nil)
-        (url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) -> Task? {
-            let downloader = downloader ?? self.downloader
-            let cache = cache ?? self.cache
-            let taskGenerator = taskGenerator ?? self.taskGenerator
-            currentTask?.cancel()
-            currentTask = downloader.download(url, taskGenerator: taskGenerator, cache: cache,
-                progress: { currentSize, totalRecievedSize, totalExpectedSize -> Void in
-                    dispatch_async(dispatch_get_main_queue()) {
-                        progress?(currentSize: currentSize, totalRecievedSize: totalRecievedSize, totalExpectedSize: totalExpectedSize)
+    public func connect<T>(url: NSURL, downloader: Downloader? = nil, cache: Cache? = nil,
+        progress: ProgressHandler? = nil,
+        decoder: (NSURL, NSData) -> T?, completion: T? -> Void) {
+            
+            guard self.task == nil || url != lastURL || requestIgnoreSameURL else { return }
+            self.task?.cancel()
+            self.lastURL = url
+            
+            var task: Task?
+            let cancelled = { () -> Bool in
+                return task !== self.task
+            }
+            
+            let downloader = downloader ?? sharedDownloader
+            task = downloader.download(url, taskGenerator: taskGenerator, cache: cache,
+                progress: {[queue] c, tr, te in
+                    guard let progress = progress else { return }
+                    dispatch_async(queue) {
+                        guard !cancelled() else { return }
+                        progress(currentSize: c, totalRecievedSize: tr, totalExpectedSize: te)
                     }
                 },
-                completion: {(result: Result) -> Void in
-                    dispatch_async(dispatch_get_main_queue()) {
-                        
+                completion: {[queue] result in
+                    if case .Success(let url, let data) = result {
+                        let r = decoder(url, data)
+                        dispatch_async(queue) {
+                            guard !cancelled() else { return }
+                            completion(r)
+                        }
+                    } else {
+                        dispatch_async(queue) {
+                            guard !cancelled() else { return }
+                            completion(nil)
+                        }
                     }
                 })
-            return currentTask
+            self.task = task
+    }
+    
+    public func cancelCurrentTask() {
+        task?.cancel()
     }
 }
+
+
+extension NSObject {
+    
+    private static var kConnectorKey = "kaizei.yimi.phantom.connectorKey"
+    
+    public var pt_connector: Connector! {
+        get {
+            if let connector = objc_getAssociatedObject(self, &UIImageView.kConnectorKey) as? Connector {
+                return connector
+            } else {
+                let connector = Connector()
+                self.pt_connector = connector
+                return connector
+            }
+        }
+        set {
+            objc_setAssociatedObject(self, &UIImageView.kConnectorKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        }
+    }
+}
+
