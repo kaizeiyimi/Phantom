@@ -31,12 +31,15 @@ class ViewController: UIViewController {
 //        }
         
 //        Phantom.sharedDownloader = DefaultDownloader()
+//        
+        imageView.pt_setImageWithURL(url0, decoder: { _, data in
+            return UIImage(data: data)
+            }, completion: { image in
+                self.imageView.image = image
+            })
         
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, Int64(Double(NSEC_PER_SEC) * 2)), dispatch_get_main_queue()) {
             self.imageView.pt_setImageWithURL(self.url0,
-                progress: { c, tr, te in
-                },
-                completion: nil,
                 animations: PTCurlDown(1))
         }
         

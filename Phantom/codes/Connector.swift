@@ -21,7 +21,7 @@ final public class Connector {
     public init() {}
     
     public func connect<T>(url: NSURL, downloader: Downloader? = nil, cache: Cache? = nil,
-        progress: ProgressHandler? = nil,
+        progress: DownloadProgressHandler? = nil,
         decoder: (NSURL, NSData) -> T?, completion: T? -> Void) {
             
             guard self.task == nil || url != lastURL || requestIgnoreSameURL else { return }

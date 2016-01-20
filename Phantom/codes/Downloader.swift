@@ -8,10 +8,10 @@
 
 import Foundation
 
-public typealias ProgressHandler = (currentSize: Int64, totalRecievedSize: Int64, totalExpectedSize: Int64) -> Void
-public typealias CompletionHandler = (result: Result) -> Void
+public typealias DownloadProgressHandler = (currentSize: Int64, totalRecievedSize: Int64, totalExpectedSize: Int64) -> Void
+public typealias DownloadCompletionHandler = (result: Result) -> Void
 
-public typealias TaskGenerator = (url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) -> (task: Task, saveToDisk: Bool)
+public typealias TaskGenerator = (url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> (task: Task, saveToDisk: Bool)
 
 public enum Result {
     case Success(url: NSURL, data: NSData)
@@ -25,17 +25,17 @@ public protocol Task: class {
 }
 
 public protocol Downloader {
-    func download(url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) -> Task?
-    func download(url: NSURL, cache: Cache?, progress: ProgressHandler?, completion: CompletionHandler) -> Task?
-    func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: ProgressHandler?, completion: CompletionHandler) -> Task?
+    func download(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task?
+    func download(url: NSURL, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task?
+    func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task?
 }
 
 public extension Downloader {
-    func download(url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) -> Task? {
+    func download(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task? {
         return download(url, taskGenerator: nil, cache: nil, progress: progress, completion: completion)
     }
     
-    func download(url: NSURL, cache: Cache?, progress: ProgressHandler?, completion: CompletionHandler) -> Task? {
+    func download(url: NSURL, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task? {
         return download(url, taskGenerator: nil, cache: cache, progress: progress, completion: completion)
     }
 }
@@ -85,7 +85,7 @@ public class DefaultDownloader: Downloader {
         session.invalidateAndCancel()
     }
     
-    public func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: ProgressHandler?, completion: CompletionHandler) -> Task? {
+    public func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task? {
         var task: Task?
         let taskGenerator: TaskGenerator! = (taskGenerator != nil ? taskGenerator : self.taskGenerator)
         dispatch_sync(queue) { [queue, operationQueue] in
@@ -125,7 +125,7 @@ public class DefaultDownloader: Downloader {
         return task
     }
     
-    public func taskForURL(url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) -> (task: Task, saveToDisk: Bool) {
+    public func taskForURL(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> (task: Task, saveToDisk: Bool) {
         let sessionTask = session.downloadTaskWithURL(url)
         sessionTask.taskDelegate = TaskDelegate(url: url, progress: progress, completion: completion)
         sessionTask.resume()
@@ -168,10 +168,10 @@ final private class URLSessionDelegate: NSObject, NSURLSessionDownloadDelegate {
 final private class TaskDelegate {
     
     private let url: NSURL
-    private let progress: ProgressHandler?
-    private let completion: CompletionHandler
+    private let progress: DownloadProgressHandler?
+    private let completion: DownloadCompletionHandler
     
-    init(url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) {
+    init(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) {
         self.progress = progress
         self.completion = completion
         self.url = url
