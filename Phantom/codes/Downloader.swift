@@ -59,7 +59,7 @@ extension NSOperation: Task {}
 
 // MARK: - sharedDownloader
 public var sharedDownloader: Downloader = {
-   return DefaultDownloader()
+    return DefaultDownloader()
 }()
 
 
@@ -75,50 +75,54 @@ public class DefaultDownloader: Downloader {
         return session
     }()
     
-    public init(){}
+    private var taskGenerator: TaskGenerator!
+    
+    public init(taskGenerator: TaskGenerator? = nil) {
+        self.taskGenerator = (taskGenerator != nil ? taskGenerator : taskForURL)
+    }
     
     deinit {
         session.invalidateAndCancel()
     }
     
     public func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: ProgressHandler?, completion: CompletionHandler) -> Task? {
-            var task: Task?
-            let taskGenerator: TaskGenerator! = (taskGenerator == nil ? taskForURL : taskGenerator)
-            dispatch_sync(queue) { [queue, operationQueue] in
-                if let data = cache?.cacheFromMemory(url) {
-                    completion(result: .Success(url: url, data: data))
-                } else {
-                    let combinedTask = CombinedDownloadTask()
-                    operationQueue.addOperationWithBlock { () -> Void in
-                        if let diskURL = cache?.diskURLForCachedURL(url), data = NSData(contentsOfURL: diskURL) {
-                            dispatch_sync(queue) {
-                                if !combinedTask.cancelled {
-                                    completion(result: .Success(url: url, data: data))
-                                } else {
-                                    completion(result: .Cancelled(url: url))
-                                }
+        var task: Task?
+        let taskGenerator: TaskGenerator! = (taskGenerator != nil ? taskGenerator : self.taskGenerator)
+        dispatch_sync(queue) { [queue, operationQueue] in
+            if let data = cache?.cacheFromMemory(url) {
+                completion(result: .Success(url: url, data: data))
+            } else {
+                let combinedTask = CombinedDownloadTask()
+                operationQueue.addOperationWithBlock { () -> Void in
+                    if let diskURL = cache?.diskURLForCachedURL(url), data = NSData(contentsOfURL: diskURL) {
+                        dispatch_sync(queue) {
+                            if !combinedTask.cancelled {
+                                completion(result: .Success(url: url, data: data))
+                            } else {
+                                completion(result: .Cancelled(url: url))
                             }
-                        } else {
-                            dispatch_sync(queue) {
-                                if !combinedTask.cancelled {
-                                    var taskInfo: (task: Task, saveToDisk: Bool)!
-                                    taskInfo = taskGenerator(url: url, progress: progress,
-                                        completion: { result in
-                                            let _ = combinedTask // delay the task's deinit
-                                            if case .Success(let url, let data) = result {
-                                                cache?.cache(url, data: data, saveToDisk: taskInfo.saveToDisk)
-                                            }
-                                            completion(result: result)
-                                    })
-                                    combinedTask.sessionTask = taskInfo.task
-                                }
+                        }
+                    } else {
+                        dispatch_sync(queue) {
+                            if !combinedTask.cancelled {
+                                var taskInfo: (task: Task, saveToDisk: Bool)!
+                                taskInfo = taskGenerator(url: url, progress: progress,
+                                    completion: { result in
+                                        let _ = combinedTask // delay the task's deinit
+                                        if case .Success(let url, let data) = result {
+                                            cache?.cache(url, data: data, saveToDisk: taskInfo.saveToDisk)
+                                        }
+                                        completion(result: result)
+                                })
+                                combinedTask.sessionTask = taskInfo.task
                             }
                         }
                     }
-                    task = combinedTask
                 }
+                task = combinedTask
             }
-            return task
+        }
+        return task
     }
     
     public func taskForURL(url: NSURL, progress: ProgressHandler?, completion: CompletionHandler) -> (task: Task, saveToDisk: Bool) {
