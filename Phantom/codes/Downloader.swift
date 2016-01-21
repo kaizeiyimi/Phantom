@@ -8,6 +8,8 @@
 
 import Foundation
 
+/// -1 means progress is cancelled.
+public let PTInvalidDownloadProgressMetric: Int64 = -1
 
 public typealias ProgressInfo = (currentSize: Int64, totalRecievedSize: Int64, totalExpectedSize: Int64)
 
@@ -28,17 +30,17 @@ public protocol Task: class {
 }
 
 public protocol Downloader {
-    func download(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task?
-    func download(url: NSURL, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task?
-    func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task?
+    func download(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
+    func download(url: NSURL, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
+    func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
 }
 
 public extension Downloader {
-    func download(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task? {
+    func download(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task {
         return download(url, taskGenerator: nil, cache: nil, progress: progress, completion: completion)
     }
     
-    func download(url: NSURL, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task? {
+    func download(url: NSURL, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task {
         return download(url, taskGenerator: nil, cache: cache, progress: progress, completion: completion)
     }
 }
@@ -56,8 +58,6 @@ extension NSURLSessionTask: Task {
         return state == .Canceling
     }
 }
-
-extension NSOperation: Task {}
 
 
 // MARK: - sharedDownloader
@@ -88,12 +88,15 @@ public class DefaultDownloader: Downloader {
         session.invalidateAndCancel()
     }
     
-    public func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task? {
+    public func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task {
         var task: Task?
         let taskGenerator: TaskGenerator! = (taskGenerator != nil ? taskGenerator : self.taskGenerator)
         dispatch_sync(queue) { [queue, operationQueue] in
             if let data = cache?.cacheFromMemory(url) {
-                completion(.Success(url: url, data: data))
+                task = InMemoryTask()
+                dispatch_async(queue) {
+                    completion(.Success(url: url, data: data))
+                }
             } else {
                 let combinedTask = CombinedDownloadTask()
                 operationQueue.addOperationWithBlock { () -> Void in
@@ -118,6 +121,8 @@ public class DefaultDownloader: Downloader {
                                         completion(result)
                                 })
                                 combinedTask.sessionTask = taskInfo.task
+                            } else {
+                                completion(.Cancelled(url: url))
                             }
                         }
                     }
@@ -125,7 +130,7 @@ public class DefaultDownloader: Downloader {
                 task = combinedTask
             }
         }
-        return task
+        return task!
     }
     
     public func taskForURL(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> (task: Task, saveToDisk: Bool) {
@@ -204,5 +209,12 @@ final private class CombinedDownloadTask: Task {
     private func cancel() {
         cancelled = true
         sessionTask?.cancel()
+    }
+}
+
+final private class InMemoryTask: Task {
+    private var cancelled = false
+    private func cancel() {
+        cancelled = true
     }
 }

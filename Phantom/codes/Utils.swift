@@ -45,32 +45,46 @@ private func simpleTransitionAnimation(view: UIView, duration: NSTimeInterval, o
     UIView.transitionWithView(view, duration: duration, options: options, animations: {}, completion: nil)
 }
 
-public func PTFadeIn(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionCrossDissolve)
+public func PTFadeIn(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+    if decoded != nil {
+        simpleTransitionAnimation(view, duration: duration, options: .TransitionCrossDissolve)
+    }
 }
 
-public func PTFlipFromLeft(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromLeft)
+public func PTFlipFromLeft(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+    if decoded != nil {
+        simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromLeft)
+    }
 }
 
-public func PTFlipFromRight(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromRight)
+public func PTFlipFromRight(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+    if decoded != nil {
+        simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromRight)
+    }
 }
 
-public func PTFlipFromBottom(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromBottom)
+public func PTFlipFromBottom(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+    if decoded != nil {
+        simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromBottom)
+    }
 }
 
-public func PTFlipFromTop(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromTop)
+public func PTFlipFromTop(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+    if decoded != nil {
+        simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromTop)
+    }
 }
 
-public func PTCurlUp(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionCurlUp)
+public func PTCurlUp(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+    if decoded != nil {
+        simpleTransitionAnimation(view, duration: duration, options: .TransitionCurlUp)
+    }
 }
 
-public func PTCurlDown(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionCurlDown)
+public func PTCurlDown(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+    if decoded != nil {
+        simpleTransitionAnimation(view, duration: duration, options: .TransitionCurlDown)
+    }
 }
 
 
@@ -81,16 +95,18 @@ public func PTAttachProgressHintView<T: UIView>(toView: UIView,
     @noescape attach: (toView: UIView) -> T,
     update: ((indicator: T, progressInfo: ProgressInfo) -> Void)?)
     -> DownloadProgressHandler {
-        let indicator = attach(toView: toView)
+        weak var indicator = attach(toView: toView)
         func progress(currentSize: Int64, totalRecievedSize: Int64, totalExpectedSize: Int64) -> Void {
-            if let update = update {
+            if let update = update, indicator = indicator {
                 update(indicator: indicator, progressInfo: (currentSize, totalRecievedSize, totalExpectedSize))
             }
-            if totalRecievedSize >= totalExpectedSize {
-                indicator.removeFromSuperview()
+            if totalRecievedSize >= totalExpectedSize, let indicator = indicator {
+                dispatch_async(dispatch_get_main_queue()) {
+                    indicator.removeFromSuperview()
+                }
             }
         }
-    
+        
         return progress
 }
 
@@ -111,16 +127,16 @@ public func PTAttachDefaultIndicator(style:UIActivityIndicatorViewStyle = .Gray,
 
 /// progress will be removed when download finished.
 public func PTAttachDefaultProgress(toView toView: UIView) -> DownloadProgressHandler {
-        return PTAttachProgressHintView(toView,
-            attach: { toView -> UIProgressView in
-                let progress = UIProgressView(progressViewStyle: .Default)
-                progress.frame = CGRectMake(5, toView.bounds.height * 0.618 - progress.frame.height / 2,
-                    toView.bounds.width - 10, progress.frame.height)
-                progress.autoresizingMask = [.FlexibleWidth, .FlexibleTopMargin]
-                toView.addSubview(progress)
-                return progress
-            },
-            update: {
-                $0.setProgress(Float($1.totalRecievedSize) / Float($1.totalExpectedSize), animated: true)
-            })
+    return PTAttachProgressHintView(toView,
+        attach: { toView -> UIProgressView in
+            let progress = UIProgressView(progressViewStyle: .Default)
+            progress.frame = CGRectMake(5, toView.bounds.height * 0.618 - progress.frame.height / 2,
+                toView.bounds.width - 10, progress.frame.height)
+            progress.autoresizingMask = [.FlexibleWidth, .FlexibleTopMargin]
+            toView.addSubview(progress)
+            return progress
+        },
+        update: {
+            $0.setProgress(Float($1.totalRecievedSize) / Float($1.totalExpectedSize), animated: true)
+    })
 }

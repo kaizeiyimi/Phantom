@@ -23,10 +23,15 @@ public var sharedCache: Cache = {
 
 // MARK: DefaultCache
 public class DefaultCache: Cache {
-    public func cache(url: NSURL, data: NSData, saveToDisk: Bool) {}
+    
+    private var cache = NSCache()
+    
+    public func cache(url: NSURL, data: NSData, saveToDisk: Bool) {
+        cache.setObject(data, forKey: url)
+    }
     
     public func cacheFromMemory(url: NSURL) -> NSData? {
-        return nil
+        return cache.objectForKey(url) as? NSData
     }
     
     public func cacheFromDisk(url: NSURL) -> NSData? {

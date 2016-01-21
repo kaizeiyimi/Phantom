@@ -11,13 +11,10 @@ import Foundation
 
 final public class Connector {
     
-    /// -1 means progress is cancelled.
-    public static let PTCancelledDownloadProgressMetric: Int64 = -1
-    
     private weak var task: Task?
-    private var lastURL: NSURL?
+    private var lastProgress: DownloadProgressHandler?
+    private var lastCompletion: (Any? -> Void)?
     
-    private var requestIgnoreSameURL = true // not expose yet.
     public var queue = dispatch_get_main_queue()
     public var taskGenerator: TaskGenerator?
     
@@ -30,16 +27,9 @@ final public class Connector {
     public func connect<T>(url: NSURL, downloader: Downloader? = nil, cache: Cache? = nil,
         progress: DownloadProgressHandler? = nil,
         decoder: (NSURL, NSData) -> T?, completion: T? -> Void) {
-            
-//            if self.task != nil && url == lastURL && !requestIgnoreSameURL {
-//                let metric = Connector.PTCancelledDownloadProgressMetric
-//                progress?((metric, metric, metric))
-//                return
-//            }
-            
-            self.task?.cancel()
-            self.lastURL = url
-            
+            cancelCurrentTask()
+            // TODO: trigger last task's cancel.
+
             var task: Task?
             let downloader = downloader ?? sharedDownloader
             task = downloader.download(url, taskGenerator: taskGenerator, cache: cache,
@@ -56,14 +46,11 @@ final public class Connector {
                         decoded = decoder(url, data)
                     }
                     dispatch_async(queue) {
-                        guard let task = task where !task.cancelled else {
-                            let metric = Connector.PTCancelledDownloadProgressMetric
-                            progress?((metric, metric, metric))
-                            return
-                        }
+                        guard let task = task where !task.cancelled else { return }
                         completion(decoded)
                     }
                 })
+            
             self.task = task
     }
     

@@ -47,7 +47,6 @@ extension UIImageView {
         progress: DownloadProgressHandler?,
         decoder: (url: NSURL, data: NSData) -> T?, completion:(decoded: T?) -> Void,
         animations:((imageView: UIImageView, decoded: T?) -> Void)? = nil) {
-            image = placeholder
             pt_connector.connect(url, downloader: downloader ?? sharedDownloader, cache: cache,
                 progress: {[weak self] c, tr, te in
                     guard let progress = progress, _ = self else { return }
@@ -59,6 +58,8 @@ extension UIImageView {
                     completion(decoded: decoded)
                     animations?(imageView: this, decoded: decoded)
                 })
+            
+            image = placeholder
     }
     
 }

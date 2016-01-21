@@ -56,18 +56,20 @@ class ViewController: UIViewController {
         }
     }
     
-    private func progressHandler() -> DownloadProgressHandler {
-        return progressSegment.selectedSegmentIndex == 0 ? PTAttachDefaultIndicator(toView: imageView) : PTAttachDefaultProgress(toView: imageView)
+    private func progressHandler() -> DownloadProgressHandler? {
+        switch progressSegment.selectedSegmentIndex {
+        case 0: return PTAttachDefaultIndicator(toView: imageView)
+        case 1: return PTAttachDefaultProgress(toView: imageView)
+        default: return nil
+        }
     }
     
-    private func animationHandler() -> (view: UIView, decoded: Any) -> Void {
-        let type = animationSegment.selectedSegmentIndex
-        if type == 0 {
-            return PTCurlDown(0.5)
-        } else if type == 1 {
-            return PTFadeIn(0.5)
-        } else {
-            return PTFlipFromBottom(0.6)
+    private func animationHandler() -> ((view: UIView, decoded: Any) -> Void)? {
+        switch animationSegment.selectedSegmentIndex {
+        case 0: return PTCurlDown(0.5)
+        case 1: return PTFadeIn(0.5)
+        case 2: return PTFlipFromBottom(0.6)
+        default: return nil
         }
     }
     
