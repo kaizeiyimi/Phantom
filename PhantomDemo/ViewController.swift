@@ -42,7 +42,7 @@ class ViewController: UIViewController {
         } else if type == 1 {
             imageView.pt_setImageWithURL(GIFURL, placeholder: placeholder,
                 progress: progressHandler(),
-                decoder: { _, data in
+                decoder: { _, data -> AnimatedGIFImage? in
                     return AnimatedGIFImage(data: data) // decode as AnimatedGIFImage
                 },
                 completion: {[weak self] image in
@@ -64,7 +64,7 @@ class ViewController: UIViewController {
         }
     }
     
-    private func animationHandler() -> ((view: UIView, decoded: Any) -> Void)? {
+    private func animationHandler() -> ((view: UIView, decoded: Any?) -> Void)? {
         switch animationSegment.selectedSegmentIndex {
         case 0: return PTCurlDown(0.5)
         case 1: return PTFadeIn(0.5)

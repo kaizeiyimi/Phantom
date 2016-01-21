@@ -29,14 +29,13 @@ final public class Connector {
         decoder: (NSURL, NSData) -> T?, completion: T? -> Void) {
             cancelCurrentTask()
             // TODO: trigger last task's cancel.
-
-            var task: Task?
+            
             let downloader = downloader ?? sharedDownloader
-            task = downloader.download(url, taskGenerator: taskGenerator, cache: cache,
+            self.task = downloader.download(url, taskGenerator: taskGenerator, cache: cache,
                 progress: {[queue] c, tr, te in
                     guard let progress = progress else { return }
                     dispatch_async(queue) {
-                        guard let task = task where !task.cancelled else { return }
+//                        guard let task = task where !task.cancelled else { return }
                         progress((c, tr, te))
                     }
                 },
@@ -46,12 +45,10 @@ final public class Connector {
                         decoded = decoder(url, data)
                     }
                     dispatch_async(queue) {
-                        guard let task = task where !task.cancelled else { return }
+//                        guard let task = task where !task.cancelled else { return }
                         completion(decoded)
                     }
                 })
-            
-            self.task = task
     }
     
     public func cancelCurrentTask() {

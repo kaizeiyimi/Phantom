@@ -60,6 +60,11 @@ extension NSURLSessionTask: Task {
 }
 
 
+private func notifyProgressInvalid(progress: DownloadProgressHandler?) {
+    let metric = PTInvalidDownloadProgressMetric
+    progress?((metric, metric, metric))
+}
+
 // MARK: - sharedDownloader
 public var sharedDownloader: Downloader = {
     return DefaultDownloader()
@@ -89,23 +94,33 @@ public class DefaultDownloader: Downloader {
     }
     
     public func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task {
-        var task: Task?
+        var task: Task!
         let taskGenerator: TaskGenerator! = (taskGenerator != nil ? taskGenerator : self.taskGenerator)
         dispatch_sync(queue) { [queue, operationQueue] in
             if let data = cache?.cacheFromMemory(url) {
                 task = InMemoryTask()
                 dispatch_async(queue) {
-                    completion(.Success(url: url, data: data))
+                    if task.cancelled {
+                        notifyProgressInvalid(progress)
+                        completion(.Cancelled(url: url))
+                    } else {
+                        let length = Int64(data.length)
+                        progress?((length, length ,length))
+                        completion(.Success(url: url, data: data))
+                    }
                 }
             } else {
                 let combinedTask = CombinedDownloadTask()
                 operationQueue.addOperationWithBlock { () -> Void in
                     if let diskURL = cache?.diskURLForCachedURL(url), data = NSData(contentsOfURL: diskURL) {
                         dispatch_sync(queue) {
-                            if !combinedTask.cancelled {
-                                completion(.Success(url: url, data: data))
-                            } else {
+                            if combinedTask.cancelled {
+                                notifyProgressInvalid(progress)
                                 completion(.Cancelled(url: url))
+                            } else {
+                                let length = Int64(data.length)
+                                progress?((length, length ,length))
+                                completion(.Success(url: url, data: data))
                             }
                         }
                     } else {
@@ -114,14 +129,17 @@ public class DefaultDownloader: Downloader {
                                 var taskInfo: (task: Task, saveToDisk: Bool)!
                                 taskInfo = taskGenerator(url: url, progress: progress,
                                     completion: { result in
-                                        let _ = combinedTask // delay the task's deinit
+                                        let _ = combinedTask // just keep task's live
                                         if case .Success(let url, let data) = result {
                                             cache?.cache(url, data: data, saveToDisk: taskInfo.saveToDisk)
+                                        } else {
+                                            notifyProgressInvalid(progress)
                                         }
                                         completion(result)
                                 })
                                 combinedTask.sessionTask = taskInfo.task
                             } else {
+                                notifyProgressInvalid(progress)
                                 completion(.Cancelled(url: url))
                             }
                         }
@@ -130,7 +148,7 @@ public class DefaultDownloader: Downloader {
                 task = combinedTask
             }
         }
-        return task!
+        return task
     }
     
     public func taskForURL(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> (task: Task, saveToDisk: Bool) {

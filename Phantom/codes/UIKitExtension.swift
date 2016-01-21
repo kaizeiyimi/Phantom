@@ -37,7 +37,7 @@ extension UIImageView {
     }
     
     public func pt_setImageWithURL<T>(url: NSURL, placeholder: UIImage? = nil,
-        decoder: (url: NSURL, data: NSData) -> T?, completion:(decoded: T?) -> Void,
+        decoder: (url: NSURL, data: NSData) -> T?, completion: T? -> Void,
         animations:((imageView: UIImageView, decoded: T?) -> Void)? = nil) {
             pt_setImageWithURL(url, placeholder: placeholder, progress: nil, decoder: decoder, completion: completion)
     }
@@ -45,7 +45,7 @@ extension UIImageView {
     public func pt_setImageWithURL<T>(url: NSURL, placeholder: UIImage? = nil,
         downloader: Downloader = sharedDownloader, cache: Cache? = sharedCache,
         progress: DownloadProgressHandler?,
-        decoder: (url: NSURL, data: NSData) -> T?, completion:(decoded: T?) -> Void,
+        decoder: (url: NSURL, data: NSData) -> T?, completion: T? -> Void,
         animations:((imageView: UIImageView, decoded: T?) -> Void)? = nil) {
             pt_connector.connect(url, downloader: downloader ?? sharedDownloader, cache: cache,
                 progress: {[weak self] c, tr, te in
@@ -55,7 +55,7 @@ extension UIImageView {
                 decoder: decoder,
                 completion:{[weak self] decoded in
                     guard let this = self else { return }
-                    completion(decoded: decoded)
+                    completion(decoded)
                     animations?(imageView: this, decoded: decoded)
                 })
             
