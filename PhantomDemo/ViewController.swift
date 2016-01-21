@@ -8,6 +8,7 @@
 
 import UIKit
 import Phantom
+import XLYAnimatedImage
 
 
 class ViewController: UIViewController {
@@ -31,6 +32,8 @@ class ViewController: UIViewController {
         let placeholder = placeholderSwitch.on ? UIImage(named: "placeholder") : nil
         let type = sender.selectedSegmentIndex
         
+        imageView.xly_animatedImagePlayer = nil // remove GIF play
+        
         if type == 0 || type == 2 {
             imageView.pt_setImageWithURL(type == 0 ? normalURL : localURL, placeholder: placeholder,
                 progress: progressHandler(),
@@ -40,10 +43,14 @@ class ViewController: UIViewController {
             imageView.pt_setImageWithURL(GIFURL, placeholder: placeholder,
                 progress: progressHandler(),
                 decoder: { _, data in
-                    return UIImage(data: data)
+                    return AnimatedGIFImage(data: data) // decode as AnimatedGIFImage
                 },
                 completion: {[weak self] image in
-                    self?.imageView.image = image
+                    if let image = image {
+                        self?.imageView.xly_setAnimatedImage(image) // playGIF
+                    } else {
+                        self?.imageView.image = nil
+                    }
                 },
                 animations: animationHandler())
         }

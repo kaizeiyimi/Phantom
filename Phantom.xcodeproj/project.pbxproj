@@ -21,6 +21,8 @@
 		F693408B1C4DCF2700F85117 /* Cache.swift in Sources */ = {isa = PBXBuildFile; fileRef = F693408A1C4DCF2700F85117 /* Cache.swift */; };
 		F693408D1C4E21B300F85117 /* UIKitExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = F693408C1C4E21B300F85117 /* UIKitExtension.swift */; };
 		F69DD1BD1C5079C400884F67 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = F69DD1BC1C5079C400884F67 /* Utils.swift */; };
+		F69DD1BF1C50D0B700884F67 /* XLYAnimatedImage.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F69DD1BE1C50D0B700884F67 /* XLYAnimatedImage.framework */; };
+		F69DD1C01C50D0B700884F67 /* XLYAnimatedImage.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F69DD1BE1C50D0B700884F67 /* XLYAnimatedImage.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -41,6 +43,7 @@
 			dstSubfolderSpec = 10;
 			files = (
 				F69340841C4CD98500F85117 /* Phantom.framework in Embed Frameworks */,
+				F69DD1C01C50D0B700884F67 /* XLYAnimatedImage.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -64,6 +67,7 @@
 		F693408A1C4DCF2700F85117 /* Cache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Cache.swift; sourceTree = "<group>"; };
 		F693408C1C4E21B300F85117 /* UIKitExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UIKitExtension.swift; sourceTree = "<group>"; };
 		F69DD1BC1C5079C400884F67 /* Utils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
+		F69DD1BE1C50D0B700884F67 /* XLYAnimatedImage.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = XLYAnimatedImage.framework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -79,6 +83,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F69340831C4CD98500F85117 /* Phantom.framework in Frameworks */,
+				F69DD1BF1C50D0B700884F67 /* XLYAnimatedImage.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -132,6 +137,7 @@
 				F69340751C4CD97300F85117 /* ViewController.swift */,
 				F69340771C4CD97300F85117 /* Main.storyboard */,
 				F693407A1C4CD97300F85117 /* Assets.xcassets */,
+				F69DD1BE1C50D0B700884F67 /* XLYAnimatedImage.framework */,
 				F693407C1C4CD97300F85117 /* LaunchScreen.storyboard */,
 				F69340881C4CE65400F85117 /* zuoluo.jpg */,
 				F693407F1C4CD97300F85117 /* Info.plist */,
@@ -429,6 +435,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				EMBEDDED_CONTENT_CONTAINS_SWIFT = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/PhantomDemo",
+				);
 				INFOPLIST_FILE = PhantomDemo/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = kaizei.yimi.PhantomDemo;
@@ -441,6 +451,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				EMBEDDED_CONTENT_CONTAINS_SWIFT = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/PhantomDemo",
+				);
 				INFOPLIST_FILE = PhantomDemo/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = kaizei.yimi.PhantomDemo;

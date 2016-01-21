@@ -1,0 +1,10 @@
+framework module XLYAnimatedImage {
+  umbrella header "XLYAnimatedImage.h"
+
+  export *
+  module * { export * }
+}
+
+module XLYAnimatedImage.Swift {
+    header "XLYAnimatedImage-Swift.h"
+}
