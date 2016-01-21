@@ -9,6 +9,7 @@
 import UIKit
 import Phantom
 
+
 class ViewController: UIViewController {
 
     @IBOutlet weak var imageView: UIImageView!
@@ -31,21 +32,32 @@ class ViewController: UIViewController {
 //        }
         
 //        Phantom.sharedDownloader = DefaultDownloader()
-//        
-        imageView.pt_setImageWithURL(url0, decoder: { _, data in
-            return UIImage(data: data)
-            }, completion: { image in
-                self.imageView.image = image
-            })
+//
         
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, Int64(Double(NSEC_PER_SEC) * 2)), dispatch_get_main_queue()) {
-            self.imageView.pt_setImageWithURL(self.url0,
-                animations: PTCurlDown(1))
-        }
+        imageView.pt_setImageWithURL(url1, placeholder: nil,
+            progress: PTAttachDefaultIndicator(toView: imageView),
+            decoder: { _, data in
+            return UIImage(data: data)
+            },
+            completion: { image in
+                self.imageView.image = image
+            },
+            animations: PTCurlDown(0.8))
+        
+//        
+//        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, Int64(Double(NSEC_PER_SEC) * 2)), dispatch_get_main_queue()) {
+//            self.imageView.pt_setImageWithURL(self.url0,
+//                animations: PTCurlDown(1))
+//        }
         
 //
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, Int64(Double(NSEC_PER_SEC) * 2)), dispatch_get_main_queue()) {
-//            self.imageView.pt_setImageWithURL(self.url1, animations: flipFromBottom(2))
+            self.imageView.pt_setImageWithURL(self.url0,
+                progress: PTAttachDefaultProgress(toView: self.imageView),
+                completion: nil,
+                animations: PTFlipFromBottom(2))
+//            self.imageView.removeFromSuperview()
+//            self.imageView.pt_connector.cancelCurrentTask()
         }
         
 //        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, Int64(Double(NSEC_PER_SEC) * 0)), dispatch_get_main_queue()) {

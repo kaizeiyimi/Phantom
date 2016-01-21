@@ -46,6 +46,7 @@ extension UIImageView {
         progress: DownloadProgressHandler?,
         decoder: (NSURL, NSData) -> T?, completion:T? -> Void,
         animations:((UIImageView, T?) -> Void)? = nil) {
+            image = placeholder
             pt_connector.connect(url, downloader: downloader ?? sharedDownloader, cache: cache,
                 progress: {[weak self] c, tr, te in
                     guard let progress = progress, _ = self else { return }
@@ -89,38 +90,4 @@ private func decodeCGImage(image: CGImage?) -> CGImage? {
         result = CGBitmapContextCreateImage(context)
     }
     return result
-}
-
-
-// MARK: helper animation methods
-private func simpleTransitionAnimation(view: UIView, duration: NSTimeInterval, options: UIViewAnimationOptions) {
-    UIView.transitionWithView(view, duration: duration, options: options, animations: {}, completion: nil)
-}
-
-public func PTFadeIn(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionCrossDissolve)
-}
-
-public func PTFlipFromLeft(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromLeft)
-}
-
-public func PTFlipFromRight(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromRight)
-}
-
-public func PTFlipFromBottom(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromBottom)
-}
-
-public func PTFlipFromTop(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromTop)
-}
-
-public func PTCurlUp(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionCurlUp)
-}
-
-public func PTCurlDown(duration: NSTimeInterval)(view: UIView, decoded: Any) {
-    simpleTransitionAnimation(view, duration: duration, options: .TransitionCurlDown)
 }

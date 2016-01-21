@@ -20,6 +20,7 @@
 		F69340891C4CE65400F85117 /* zuoluo.jpg in Resources */ = {isa = PBXBuildFile; fileRef = F69340881C4CE65400F85117 /* zuoluo.jpg */; };
 		F693408B1C4DCF2700F85117 /* Cache.swift in Sources */ = {isa = PBXBuildFile; fileRef = F693408A1C4DCF2700F85117 /* Cache.swift */; };
 		F693408D1C4E21B300F85117 /* UIKitExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = F693408C1C4E21B300F85117 /* UIKitExtension.swift */; };
+		F69DD1BD1C5079C400884F67 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = F69DD1BC1C5079C400884F67 /* Utils.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,6 +63,7 @@
 		F69340881C4CE65400F85117 /* zuoluo.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = zuoluo.jpg; sourceTree = "<group>"; };
 		F693408A1C4DCF2700F85117 /* Cache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Cache.swift; sourceTree = "<group>"; };
 		F693408C1C4E21B300F85117 /* UIKitExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UIKitExtension.swift; sourceTree = "<group>"; };
+		F69DD1BC1C5079C400884F67 /* Utils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Utils.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -118,6 +120,7 @@
 				F693408A1C4DCF2700F85117 /* Cache.swift */,
 				F693406B1C4CC2B600F85117 /* Connector.swift */,
 				F693408C1C4E21B300F85117 /* UIKitExtension.swift */,
+				F69DD1BC1C5079C400884F67 /* Utils.swift */,
 			);
 			path = codes;
 			sourceTree = "<group>";
@@ -250,6 +253,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F69DD1BD1C5079C400884F67 /* Utils.swift in Sources */,
 				F693406C1C4CC2B600F85117 /* Connector.swift in Sources */,
 				F693408B1C4DCF2700F85117 /* Cache.swift in Sources */,
 				F693408D1C4E21B300F85117 /* UIKitExtension.swift in Sources */,
@@ -463,6 +467,7 @@
 				F69340651C4CC24800F85117 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		F69340801C4CD97300F85117 /* Build configuration list for PBXNativeTarget "PhantomDemo" */ = {
 			isa = XCConfigurationList;
@@ -471,6 +476,7 @@
 				F69340821C4CD97300F85117 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
