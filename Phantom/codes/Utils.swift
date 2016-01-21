@@ -9,6 +9,37 @@
 import UIKit
 
 
+/// stolen from SDWebImage's decoder. just change OC to swift.
+public func decodeCGImage(image: CGImage?) -> CGImage? {
+    guard let image = image else { return nil }
+    var result: CGImage?
+    autoreleasepool {
+        let width = CGImageGetWidth(image), height = CGImageGetHeight(image)
+        
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var bitmapInfo = CGImageGetBitmapInfo(image).rawValue
+        let infoMask = bitmapInfo & CGBitmapInfo.AlphaInfoMask.rawValue
+        let anyNonAlpha = (infoMask == CGImageAlphaInfo.None.rawValue ||
+            infoMask == CGImageAlphaInfo.NoneSkipFirst.rawValue ||
+            infoMask == CGImageAlphaInfo.NoneSkipLast.rawValue)
+        
+        if infoMask == CGImageAlphaInfo.None.rawValue && CGColorSpaceGetNumberOfComponents(colorSpace) > 1 {
+            bitmapInfo &= ~CGBitmapInfo.AlphaInfoMask.rawValue
+            bitmapInfo |= CGImageAlphaInfo.NoneSkipFirst.rawValue
+        } else if !anyNonAlpha && CGColorSpaceGetNumberOfComponents(colorSpace) == 3 {
+            bitmapInfo &= ~CGBitmapInfo.AlphaInfoMask.rawValue
+            bitmapInfo |= CGImageAlphaInfo.PremultipliedFirst.rawValue
+        }
+        
+        let context = CGBitmapContextCreate(nil, CGImageGetWidth(image), CGImageGetHeight(image), CGImageGetBitsPerComponent(image), 0, colorSpace, bitmapInfo)
+        
+        CGContextDrawImage(context, CGRect(x: 0, y: 0, width: width, height: height), image)
+        result = CGBitmapContextCreateImage(context)
+    }
+    return result
+}
+
+
 // MARK: helper animation methods
 private func simpleTransitionAnimation(view: UIView, duration: NSTimeInterval, options: UIViewAnimationOptions) {
     UIView.transitionWithView(view, duration: duration, options: options, animations: {}, completion: nil)
@@ -83,8 +114,8 @@ public func PTAttachDefaultProgress(toView toView: UIView) -> DownloadProgressHa
         return PTAttachProgressHintView(toView,
             attach: { toView -> UIProgressView in
                 let progress = UIProgressView(progressViewStyle: .Default)
-                progress.frame = CGRectMake(3, toView.bounds.maxY - progress.frame.height - 3,
-                    toView.bounds.width - 6, progress.frame.height)
+                progress.frame = CGRectMake(5, toView.bounds.height * 0.618 - progress.frame.height / 2,
+                    toView.bounds.width - 10, progress.frame.height)
                 progress.autoresizingMask = [.FlexibleWidth, .FlexibleTopMargin]
                 toView.addSubview(progress)
                 return progress

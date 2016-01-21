@@ -17,28 +17,118 @@
                         <rect key="frame" x="0.0" y="0.0" width="320" height="568"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="JQ4-7h-UQn">
-                                <rect key="frame" x="35" y="80" width="250" height="186"/>
-                                <color key="backgroundColor" white="0.66666666666666663" alpha="1" colorSpace="calibratedWhite"/>
+                            <segmentedControl opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" momentary="YES" translatesAutoresizingMaskIntoConstraints="NO" id="G37-5c-G9e">
+                                <rect key="frame" x="56" y="222" width="209" height="29"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="209" id="Kjh-Nt-CTz"/>
+                                    <constraint firstAttribute="height" constant="28" id="tvV-rH-SF5"/>
+                                </constraints>
+                                <segments>
+                                    <segment title="Normal"/>
+                                    <segment title="GIF"/>
+                                    <segment title="Local"/>
+                                </segments>
+                                <connections>
+                                    <action selector="changeURL:" destination="BYZ-38-t0r" eventType="valueChanged" id="q8V-96-NhZ"/>
+                                </connections>
+                            </segmentedControl>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="placeholder" translatesAutoresizingMaskIntoConstraints="NO" id="JQ4-7h-UQn">
+                                <rect key="frame" x="35" y="28" width="250" height="186"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="250" id="bUQ-x0-jKV"/>
                                     <constraint firstAttribute="height" constant="186" id="cdc-kF-GoP"/>
                                 </constraints>
+                                <userDefinedRuntimeAttributes>
+                                    <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
+                                        <integer key="value" value="10"/>
+                                    </userDefinedRuntimeAttribute>
+                                </userDefinedRuntimeAttributes>
                             </imageView>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="progress:" textAlignment="right" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="MQa-zJ-gBH">
+                                <rect key="frame" x="8" y="271" width="67" height="17"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                <color key="textColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="calibratedRGB"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="animation:" textAlignment="right" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="gbz-2v-vgo">
+                                <rect key="frame" x="8" y="307" width="67" height="17"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                <color key="textColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="calibratedRGB"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <segmentedControl opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="Z8G-cf-tAZ">
+                                <rect key="frame" x="83" y="301" width="224" height="29"/>
+                                <segments>
+                                    <segment title="CurlDown"/>
+                                    <segment title="fadeIn"/>
+                                    <segment title="flip"/>
+                                </segments>
+                            </segmentedControl>
+                            <switch opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" contentHorizontalAlignment="center" contentVerticalAlignment="center" on="YES" translatesAutoresizingMaskIntoConstraints="NO" id="H5b-Pw-hBn">
+                                <rect key="frame" x="92" y="344" width="51" height="31"/>
+                            </switch>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="placeholder" textAlignment="right" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="f4Q-aY-E7S">
+                                <rect key="frame" x="8" y="351" width="77" height="17"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                <color key="textColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="calibratedRGB"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <segmentedControl opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="hgY-BK-MAt">
+                                <rect key="frame" x="83" y="265" width="137" height="29"/>
+                                <segments>
+                                    <segment title="Indicator"/>
+                                    <segment title="Progress"/>
+                                </segments>
+                            </segmentedControl>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="MZy-Ne-FYA">
+                                <rect key="frame" x="15" y="405" width="290" height="96"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="290" id="J0Q-vh-qd1"/>
+                                </constraints>
+                                <string key="text">Progress and Animation can be fullly customed. Here are only some free impls. Read codes for detail, and you can create your own progress and animations, too.</string>
+                                <fontDescription key="fontDescription" type="boldSystem" pointSize="16"/>
+                                <color key="textColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="calibratedRGB"/>
+                                <nil key="highlightedColor"/>
+                            </label>
                         </subviews>
                         <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="calibratedWhite"/>
                         <constraints>
-                            <constraint firstItem="JQ4-7h-UQn" firstAttribute="top" secondItem="y3c-jy-aDJ" secondAttribute="bottom" constant="60" id="Q07-Sc-XGg"/>
+                            <constraint firstItem="G37-5c-G9e" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="4A6-7W-9JI"/>
+                            <constraint firstItem="H5b-Pw-hBn" firstAttribute="leading" secondItem="f4Q-aY-E7S" secondAttribute="trailing" constant="8" id="Gx9-7y-fhw"/>
+                            <constraint firstItem="gbz-2v-vgo" firstAttribute="leading" secondItem="8bC-Xf-vdC" secondAttribute="leading" constant="8" id="LK0-0v-Sgc"/>
+                            <constraint firstItem="MZy-Ne-FYA" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="Ns8-kI-wIk"/>
+                            <constraint firstItem="Z8G-cf-tAZ" firstAttribute="top" secondItem="hgY-BK-MAt" secondAttribute="bottom" constant="8" id="P4A-cQ-Z4n"/>
+                            <constraint firstItem="MQa-zJ-gBH" firstAttribute="leading" secondItem="8bC-Xf-vdC" secondAttribute="leading" constant="8" id="VQd-xa-Dxd"/>
+                            <constraint firstItem="G37-5c-G9e" firstAttribute="top" secondItem="JQ4-7h-UQn" secondAttribute="bottom" constant="8" id="We1-m4-5i5"/>
+                            <constraint firstItem="hgY-BK-MAt" firstAttribute="baseline" secondItem="MQa-zJ-gBH" secondAttribute="baseline" id="XTy-3h-lCX"/>
                             <constraint firstItem="JQ4-7h-UQn" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="d95-29-FDP"/>
+                            <constraint firstItem="MZy-Ne-FYA" firstAttribute="top" secondItem="H5b-Pw-hBn" secondAttribute="bottom" constant="30" id="e8i-1p-b7L"/>
+                            <constraint firstItem="gbz-2v-vgo" firstAttribute="trailing" secondItem="MQa-zJ-gBH" secondAttribute="trailing" id="h6D-6T-ohg"/>
+                            <constraint firstItem="f4Q-aY-E7S" firstAttribute="leading" secondItem="8bC-Xf-vdC" secondAttribute="leading" constant="8" id="hEh-bf-DBP"/>
+                            <constraint firstItem="hgY-BK-MAt" firstAttribute="leading" secondItem="MQa-zJ-gBH" secondAttribute="trailing" constant="8" id="hUn-zB-odJ"/>
+                            <constraint firstItem="H5b-Pw-hBn" firstAttribute="top" secondItem="Z8G-cf-tAZ" secondAttribute="bottom" constant="15" id="i0O-jG-bgl"/>
+                            <constraint firstItem="hgY-BK-MAt" firstAttribute="top" secondItem="G37-5c-G9e" secondAttribute="bottom" constant="15" id="i3e-DQ-uzV"/>
+                            <constraint firstItem="Z8G-cf-tAZ" firstAttribute="baseline" secondItem="gbz-2v-vgo" secondAttribute="baseline" id="lbl-t5-B7j"/>
+                            <constraint firstItem="JQ4-7h-UQn" firstAttribute="top" secondItem="y3c-jy-aDJ" secondAttribute="bottom" constant="8" id="q5o-Ck-lfp"/>
+                            <constraint firstItem="Z8G-cf-tAZ" firstAttribute="leading" secondItem="gbz-2v-vgo" secondAttribute="trailing" constant="8" id="sGl-de-yvc"/>
+                            <constraint firstItem="f4Q-aY-E7S" firstAttribute="centerY" secondItem="H5b-Pw-hBn" secondAttribute="centerY" id="ttK-J3-vf3"/>
                         </constraints>
                     </view>
                     <simulatedScreenMetrics key="simulatedDestinationMetrics" type="retina4"/>
                     <connections>
+                        <outlet property="animationSegment" destination="Z8G-cf-tAZ" id="x9J-Ri-3mg"/>
                         <outlet property="imageView" destination="JQ4-7h-UQn" id="Cn0-7k-FEW"/>
+                        <outlet property="placeholderSwitch" destination="H5b-Pw-hBn" id="jfp-Fz-2p1"/>
+                        <outlet property="progressSegment" destination="hgY-BK-MAt" id="kA1-6w-P5t"/>
+                        <outlet property="urlSegment" destination="G37-5c-G9e" id="Qfu-Ts-0pY"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
             </objects>
+            <point key="canvasLocation" x="456" y="479"/>
         </scene>
     </scenes>
+    <resources>
+        <image name="placeholder" width="311" height="207"/>
+    </resources>
 </document>

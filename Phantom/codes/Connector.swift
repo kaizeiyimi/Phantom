@@ -17,7 +17,7 @@ final public class Connector {
     private weak var task: Task?
     private var lastURL: NSURL?
     
-    public var requestIgnoreSameURL = true
+    private var requestIgnoreSameURL = true // not expose yet.
     public var queue = dispatch_get_main_queue()
     public var taskGenerator: TaskGenerator?
     
@@ -31,7 +31,12 @@ final public class Connector {
         progress: DownloadProgressHandler? = nil,
         decoder: (NSURL, NSData) -> T?, completion: T? -> Void) {
             
-            guard self.task == nil || url != lastURL || requestIgnoreSameURL else { return }
+//            if self.task != nil && url == lastURL && !requestIgnoreSameURL {
+//                let metric = Connector.PTCancelledDownloadProgressMetric
+//                progress?((metric, metric, metric))
+//                return
+//            }
+            
             self.task?.cancel()
             self.lastURL = url
             
