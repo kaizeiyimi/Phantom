@@ -51,6 +51,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F63D5C551C5238E10007048D /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = SOURCE_ROOT; };
+		F63D5C561C5238E10007048D /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = SOURCE_ROOT; };
 		F693405B1C4CC24800F85117 /* Phantom.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Phantom.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		F693405E1C4CC24800F85117 /* Phantom.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Phantom.h; sourceTree = "<group>"; };
 		F69340601C4CC24800F85117 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -111,9 +113,11 @@
 		F693405D1C4CC24800F85117 /* Phantom */ = {
 			isa = PBXGroup;
 			children = (
-				F69340681C4CC27700F85117 /* codes */,
 				F693405E1C4CC24800F85117 /* Phantom.h */,
 				F69340601C4CC24800F85117 /* Info.plist */,
+				F63D5C551C5238E10007048D /* LICENSE */,
+				F63D5C561C5238E10007048D /* README.md */,
+				F69340681C4CC27700F85117 /* codes */,
 			);
 			path = Phantom;
 			sourceTree = "<group>";

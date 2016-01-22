@@ -53,11 +53,11 @@
                                 <nil key="highlightedColor"/>
                             </label>
                             <segmentedControl opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="Z8G-cf-tAZ">
-                                <rect key="frame" x="11" y="358" width="299" height="29"/>
+                                <rect key="frame" x="5" y="358" width="311" height="29"/>
                                 <segments>
                                     <segment title="CurlDown"/>
                                     <segment title="fadeIn"/>
-                                    <segment title="flip"/>
+                                    <segment title="flipBottom"/>
                                     <segment title="None"/>
                                 </segments>
                             </segmentedControl>

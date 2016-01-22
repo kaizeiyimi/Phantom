@@ -48,22 +48,41 @@ extension UIImageView {
         progress: DownloadProgressHandler?,
         decoder: (url: NSURL, data: NSData) -> T?, completion: T? -> Void,
         animations:((imageView: UIImageView, decoded: T?) -> Void)? = nil) {
-            pt_connector.connect(url, downloader: downloader ?? sharedDownloader, cache: cache,
-                progress: {[weak self] c, tr, te in
-                    guard let progress = progress, _ = self else { return }
-                    progress(currentSize: c, totalRecievedSize: tr, totalExpectedSize: te)
-                },
-                decoder: decoder,
-                completion:{[weak self] decoded in
-                    guard let this = self else { return }
-                    if decoded == nil {
-                        this.image = nil
-                    }
-                    completion(decoded)
-                    animations?(imageView: this, decoded: decoded)
-                })
             
-            image = placeholder
+            if cache != nil, let decoded = (sharedDecodedCache.objectForKey(url) as? Wrapper)?.value as? T {
+                let metric = PTInvalidDownloadProgressMetric
+                progress?((metric, metric, metric))
+                completion(decoded)
+                animations?(imageView: self, decoded: decoded)
+            } else {
+                pt_connector.connect(url, downloader: downloader ?? sharedDownloader, cache: cache,
+                    progress: {[weak self] c, tr, te in
+                        guard let progress = progress, _ = self else { return }
+                        progress(currentSize: c, totalRecievedSize: tr, totalExpectedSize: te)
+                    },
+                    decoder: decoder,
+                    completion:{[weak self] decoded in
+                        if let decoded = decoded {
+                            sharedDecodedCache.setObject(Wrapper(decoded), forKey: url)
+                        }
+                        guard let this = self else { return }
+                        if decoded == nil {
+                            this.image = nil
+                        }
+                        completion(decoded)
+                        animations?(imageView: this, decoded: decoded)
+                    })
+                
+                image = placeholder
+            }
     }
     
+}
+
+private let sharedDecodedCache = NSCache()
+
+// MARK: decoded cache
+final private class Wrapper {
+    private let value: Any
+    init(_ value: Any) { self.value = value }
 }
