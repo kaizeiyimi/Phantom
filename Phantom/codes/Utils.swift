@@ -40,7 +40,7 @@ public func decodeCGImage(image: CGImage?) -> CGImage? {
 }
 
 
-// MARK: helper animation methods
+// MARK: helper animation methods. PTxxx animations will not be excuted if decoded is nil.
 private func simpleTransitionAnimation(view: UIView, duration: NSTimeInterval, options: UIViewAnimationOptions) {
     UIView.transitionWithView(view, duration: duration, options: options, animations: {}, completion: nil)
 }
@@ -91,19 +91,23 @@ public func PTCurlDown(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
 // MARK: helper progress view method
 
 /// indicator will be removed when download finished.
-public func PTAttachProgressHintView<T: UIView>(toView: UIView,
-    @noescape attach: (toView: UIView) -> T,
+public func PTAttachProgressHintView<T: UIView>(toView: UIView, attachImmediately: Bool = true,
+    attach: (toView: UIView) -> T,
     update: ((indicator: T, progressInfo: ProgressInfo) -> Void)?)
     -> DownloadProgressHandler {
-        weak var indicator = attach(toView: toView)
+        weak var indicator: T?
+        if attachImmediately {
+            indicator = attach(toView: toView)
+        }
         func progress(currentSize: Int64, totalRecievedSize: Int64, totalExpectedSize: Int64) -> Void {
+            if totalRecievedSize < totalExpectedSize && indicator == nil {
+                indicator = attach(toView: toView)
+            }
             if let update = update, indicator = indicator {
                 update(indicator: indicator, progressInfo: (currentSize, totalRecievedSize, totalExpectedSize))
             }
-            if totalRecievedSize >= totalExpectedSize, let indicator = indicator {
-                dispatch_async(dispatch_get_main_queue()) {
-                    indicator.removeFromSuperview()
-                }
+            if totalRecievedSize >= totalExpectedSize {
+                indicator?.removeFromSuperview()
             }
         }
         
@@ -111,8 +115,9 @@ public func PTAttachProgressHintView<T: UIView>(toView: UIView,
 }
 
 /// indicator will be removed when download finished.
-public func PTAttachDefaultIndicator(style:UIActivityIndicatorViewStyle = .Gray, toView: UIView) -> DownloadProgressHandler {
-    return PTAttachProgressHintView(toView, attach: {
+public func PTAttachDefaultIndicator(style:UIActivityIndicatorViewStyle = .Gray, toView: UIView, attachImmediately: Bool = true) -> DownloadProgressHandler {
+    return PTAttachProgressHintView(toView, attachImmediately: attachImmediately,
+        attach: {
         let indicator = UIActivityIndicatorView()
         indicator.activityIndicatorViewStyle = .Gray
         indicator.hidesWhenStopped = true
@@ -126,12 +131,14 @@ public func PTAttachDefaultIndicator(style:UIActivityIndicatorViewStyle = .Gray,
 }
 
 /// progress will be removed when download finished.
-public func PTAttachDefaultProgress(toView toView: UIView) -> DownloadProgressHandler {
-    return PTAttachProgressHintView(toView,
+public func PTAttachDefaultProgress(toView toView: UIView, attachImmediately: Bool = true) -> DownloadProgressHandler {
+    return PTAttachProgressHintView(toView, attachImmediately: attachImmediately,
         attach: { toView -> UIProgressView in
             let progress = UIProgressView(progressViewStyle: .Default)
-            progress.frame = CGRectMake(5, toView.bounds.height * 0.618 - progress.frame.height / 2,
-                toView.bounds.width - 10, progress.frame.height)
+            progress.frame = CGRectMake(toView.layer.borderWidth + 5,
+                toView.bounds.height * 0.618 - progress.frame.height / 2,
+                toView.bounds.width - 10 - 2 * toView.layer.borderWidth,
+                progress.frame.height)
             progress.autoresizingMask = [.FlexibleWidth, .FlexibleTopMargin]
             toView.addSubview(progress)
             return progress

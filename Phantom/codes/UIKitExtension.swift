@@ -30,8 +30,9 @@ extension UIImageView {
                     }
                 },
                 completion: {[weak self] image in
-                    self?.image = image
-                    completion?(finished: image == nil ? false : true)
+                    guard let this = self else { return }
+                    this.image = image
+                    completion?(finished: image != nil)
                 },
                 animations: animations)
     }
@@ -55,6 +56,9 @@ extension UIImageView {
                 decoder: decoder,
                 completion:{[weak self] decoded in
                     guard let this = self else { return }
+                    if decoded == nil {
+                        this.image = nil
+                    }
                     completion(decoded)
                     animations?(imageView: this, decoded: decoded)
                 })

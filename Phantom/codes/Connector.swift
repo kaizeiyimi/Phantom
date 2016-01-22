@@ -9,11 +9,14 @@
 import Foundation
 
 
+/**
+ 1. Connector hold only one task. It will cancel last task if new task is about to begin.
+ 2. all API calls should be in the 'queue' which is default to main queue.
+*/
 final public class Connector {
     
     private weak var task: Task?
-    private var lastProgress: DownloadProgressHandler?
-    private var lastCompletion: (Any? -> Void)?
+    private var cancelHandler: (() -> Void)?
     
     public var queue = dispatch_get_main_queue()
     public var taskGenerator: TaskGenerator?
@@ -21,38 +24,51 @@ final public class Connector {
     public init() {}
     
     deinit {
-        task?.cancel()
+        cancelCurrentTask()
     }
     
     public func connect<T>(url: NSURL, downloader: Downloader? = nil, cache: Cache? = nil,
         progress: DownloadProgressHandler? = nil,
         decoder: (NSURL, NSData) -> T?, completion: T? -> Void) {
             cancelCurrentTask()
-            // TODO: trigger last task's cancel.
             
+            var currentTask: Task!
             let downloader = downloader ?? sharedDownloader
             self.task = downloader.download(url, taskGenerator: taskGenerator, cache: cache,
                 progress: {[queue] c, tr, te in
                     guard let progress = progress else { return }
                     dispatch_async(queue) {
-//                        guard let task = task where !task.cancelled else { return }
+                        guard let task = currentTask where !task.cancelled else { return }
                         progress((c, tr, te))
                     }
                 },
-                completion: {[queue] result in
+                completion: {[queue, weak self] result in
                     var decoded: T?
                     if case .Success(let url, let data) = result {
                         decoded = decoder(url, data)
                     }
                     dispatch_async(queue) {
-//                        guard let task = task where !task.cancelled else { return }
+                        if self?.task === currentTask {
+                            self?.cancelHandler = nil
+                        }
+                        guard let task = currentTask where !task.cancelled else { return }
                         completion(decoded)
                     }
                 })
+            
+            currentTask = self.task
+            
+            cancelHandler = {
+                let metric = PTInvalidDownloadProgressMetric
+                progress?((metric, metric, metric))
+                completion(nil)
+            }
     }
     
     public func cancelCurrentTask() {
         task?.cancel()
+        cancelHandler?()
+        cancelHandler = nil
         task = nil
     }
 
@@ -78,4 +94,3 @@ extension NSObject {
         }
     }
 }
-
