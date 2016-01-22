@@ -61,7 +61,7 @@
                                     <segment title="None"/>
                                 </segments>
                             </segmentedControl>
-                            <switch opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" contentHorizontalAlignment="center" contentVerticalAlignment="center" on="YES" translatesAutoresizingMaskIntoConstraints="NO" id="H5b-Pw-hBn">
+                            <switch opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" misplaced="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" on="YES" translatesAutoresizingMaskIntoConstraints="NO" id="H5b-Pw-hBn">
                                 <rect key="frame" x="92" y="401" width="51" height="31"/>
                             </switch>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="placeholder" textAlignment="right" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="f4Q-aY-E7S">
@@ -70,7 +70,7 @@
                                 <color key="textColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="calibratedRGB"/>
                                 <nil key="highlightedColor"/>
                             </label>
-                            <segmentedControl opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="hgY-BK-MAt">
+                            <segmentedControl opaque="NO" contentMode="scaleToFill" misplaced="YES" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="hgY-BK-MAt">
                                 <rect key="frame" x="106" y="265" width="206" height="29"/>
                                 <segments>
                                     <segment title="Progress"/>
@@ -94,19 +94,10 @@
                                 <color key="textColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="calibratedRGB"/>
                                 <nil key="highlightedColor"/>
                             </label>
-                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="pqa-pP-O9z">
-                                <rect key="frame" x="237" y="401" width="48" height="30"/>
-                                <color key="backgroundColor" red="0.90588235859999999" green="0.270588249" blue="0.1411764771" alpha="1" colorSpace="calibratedRGB"/>
-                                <color key="tintColor" white="0.0" alpha="1" colorSpace="calibratedWhite"/>
-                                <state key="normal" title="Cancel"/>
-                                <connections>
-                                    <action selector="cancel:" destination="BYZ-38-t0r" eventType="touchUpInside" id="y0K-68-CZy"/>
-                                </connections>
-                            </button>
-                            <switch opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" contentHorizontalAlignment="center" contentVerticalAlignment="center" on="YES" translatesAutoresizingMaskIntoConstraints="NO" id="90A-zm-l7d">
+                            <switch opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" misplaced="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" on="YES" translatesAutoresizingMaskIntoConstraints="NO" id="90A-zm-l7d">
                                 <rect key="frame" x="263" y="301" width="51" height="31"/>
                             </switch>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="cache" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="VwV-Pm-7wv">
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" misplaced="YES" text="cache" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="VwV-Pm-7wv">
                                 <rect key="frame" x="219" y="308" width="39" height="17"/>
                                 <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                 <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
@@ -121,6 +112,24 @@
                                 <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
                                 <nil key="highlightedColor"/>
                             </label>
+                            <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="pqa-pP-O9z">
+                                <rect key="frame" x="238" y="401" width="78" height="30"/>
+                                <color key="backgroundColor" red="0.90588235859999999" green="0.270588249" blue="0.1411764771" alpha="1" colorSpace="calibratedRGB"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="30" id="ouV-WN-mLh"/>
+                                </constraints>
+                                <color key="tintColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                                <inset key="contentEdgeInsets" minX="15" minY="0.0" maxX="15" maxY="0.0"/>
+                                <state key="normal" title="Cancel"/>
+                                <userDefinedRuntimeAttributes>
+                                    <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
+                                        <integer key="value" value="15"/>
+                                    </userDefinedRuntimeAttribute>
+                                </userDefinedRuntimeAttributes>
+                                <connections>
+                                    <action selector="cancel:" destination="BYZ-38-t0r" eventType="touchUpInside" id="y0K-68-CZy"/>
+                                </connections>
+                            </button>
                         </subviews>
                         <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="calibratedWhite"/>
                         <constraints>
@@ -130,6 +139,7 @@
                             <constraint firstItem="H5b-Pw-hBn" firstAttribute="leading" secondItem="f4Q-aY-E7S" secondAttribute="trailing" constant="8" id="Gx9-7y-fhw"/>
                             <constraint firstItem="VwV-Pm-7wv" firstAttribute="centerY" secondItem="90A-zm-l7d" secondAttribute="centerY" id="LRH-tk-Yut"/>
                             <constraint firstItem="2vu-fg-pfX" firstAttribute="centerY" secondItem="90A-zm-l7d" secondAttribute="centerY" id="N8D-FV-EwQ"/>
+                            <constraint firstItem="pqa-pP-O9z" firstAttribute="trailing" secondItem="Z8G-cf-tAZ" secondAttribute="trailing" id="NDM-9v-wni"/>
                             <constraint firstItem="MZy-Ne-FYA" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="Ns8-kI-wIk"/>
                             <constraint firstItem="Z8G-cf-tAZ" firstAttribute="top" secondItem="hgY-BK-MAt" secondAttribute="bottom" constant="65" id="P4A-cQ-Z4n"/>
                             <constraint firstItem="pZV-Y5-ae6" firstAttribute="centerY" secondItem="2vu-fg-pfX" secondAttribute="centerY" id="R13-N1-5OY"/>
@@ -137,7 +147,6 @@
                             <constraint firstItem="90A-zm-l7d" firstAttribute="leading" secondItem="VwV-Pm-7wv" secondAttribute="trailing" constant="5" id="UDJ-Im-bRB"/>
                             <constraint firstItem="MQa-zJ-gBH" firstAttribute="leading" secondItem="8bC-Xf-vdC" secondAttribute="leading" constant="8" id="VQd-xa-Dxd"/>
                             <constraint firstItem="G37-5c-G9e" firstAttribute="top" secondItem="JQ4-7h-UQn" secondAttribute="bottom" constant="8" id="We1-m4-5i5"/>
-                            <constraint firstAttribute="trailing" secondItem="pqa-pP-O9z" secondAttribute="trailing" constant="35" id="X7i-rb-AMf"/>
                             <constraint firstItem="hgY-BK-MAt" firstAttribute="centerY" secondItem="MQa-zJ-gBH" secondAttribute="centerY" id="XTy-3h-lCX"/>
                             <constraint firstItem="90A-zm-l7d" firstAttribute="trailing" secondItem="hgY-BK-MAt" secondAttribute="trailing" id="XdV-p2-EjD"/>
                             <constraint firstItem="90A-zm-l7d" firstAttribute="top" secondItem="hgY-BK-MAt" secondAttribute="bottom" constant="8" id="an8-Q3-V87"/>
