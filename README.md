@@ -23,7 +23,7 @@ there are some example implementations such as `PTAttachDefaultIndicator`, `PTAt
 some args have default value, check codes for detail.
 Have any problem, please read more codes.
 
-1. full customise
+* full customise
 ```swift
 imageView.pt_setImageWithURL(GIFURL, 
     placeholder: placeholder,  //default to nil
@@ -44,7 +44,7 @@ imageView.pt_setImageWithURL(GIFURL,
 
 ```
 
-2. for `UIImage` use
+* for `UIImage` use
 ```swift
 imageView.pt_setImageWithURL(localURL, 
     placeholder: placeholder,
