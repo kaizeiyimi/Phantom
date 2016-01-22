@@ -16,7 +16,7 @@ public typealias ProgressInfo = (currentSize: Int64, totalRecievedSize: Int64, t
 public typealias DownloadProgressHandler = ProgressInfo -> Void
 public typealias DownloadCompletionHandler = Result -> Void
 
-public typealias TaskGenerator = (url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> (task: Task, saveToDisk: Bool)
+public typealias TaskGenerator = (url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
 
 public enum Result {
     case Success(url: NSURL, data: NSData)
@@ -126,18 +126,16 @@ public class DefaultDownloader: Downloader {
                     } else {
                         dispatch_sync(queue) {
                             if !combinedTask.cancelled {
-                                var taskInfo: (task: Task, saveToDisk: Bool)!
-                                taskInfo = taskGenerator(url: url, progress: progress,
+                                combinedTask.sessionTask = taskGenerator(url: url, progress: progress,
                                     completion: { result in
                                         let _ = combinedTask // just keep task's live
                                         if case .Success(let url, let data) = result {
-                                            cache?.cache(url, data: data, saveToDisk: taskInfo.saveToDisk)
+                                            cache?.cache(url, data: data)
                                         } else {
                                             notifyProgressInvalid(progress)
                                         }
                                         completion(result)
                                 })
-                                combinedTask.sessionTask = taskInfo.task
                             } else {
                                 notifyProgressInvalid(progress)
                                 completion(.Cancelled(url: url))
@@ -151,11 +149,11 @@ public class DefaultDownloader: Downloader {
         return task
     }
     
-    public func taskForURL(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> (task: Task, saveToDisk: Bool) {
+    public func taskForURL(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task {
         let sessionTask = session.downloadTaskWithURL(url)
         sessionTask.taskDelegate = TaskDelegate(url: url, progress: progress, completion: completion)
         sessionTask.resume()
-        return (sessionTask, true)
+        return sessionTask
     }
     
 }

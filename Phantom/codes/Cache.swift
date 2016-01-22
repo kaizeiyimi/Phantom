@@ -10,7 +10,7 @@ import Foundation
 
 
 public protocol Cache: class {
-    func cache(url: NSURL, data: NSData, saveToDisk: Bool)
+    func cache(url: NSURL, data: NSData)
     func cacheFromMemory(url: NSURL) -> NSData?
     func cacheFromDisk(url: NSURL) -> NSData?
     func diskURLForCachedURL(url: NSURL) -> NSURL?
@@ -26,7 +26,7 @@ public class DefaultCache: Cache {
     
     private var cache = NSCache()
     
-    public func cache(url: NSURL, data: NSData, saveToDisk: Bool) {
+    public func cache(url: NSURL, data: NSData) {
         cache.setObject(data, forKey: url)
     }
     

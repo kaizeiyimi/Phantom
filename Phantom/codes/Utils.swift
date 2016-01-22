@@ -106,8 +106,10 @@ public func PTAttachProgressHintView<T: UIView>(toView: UIView, attachImmediatel
             if let update = update, indicator = indicator {
                 update(indicator: indicator, progressInfo: (currentSize, totalRecievedSize, totalExpectedSize))
             }
-            if totalRecievedSize >= totalExpectedSize {
-                indicator?.removeFromSuperview()
+            if totalRecievedSize >= totalExpectedSize, let indicator = indicator {
+                dispatch_async(dispatch_get_main_queue()) {
+                    indicator.removeFromSuperview()
+                }
             }
         }
         
