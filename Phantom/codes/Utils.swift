@@ -45,43 +45,43 @@ private func simpleTransitionAnimation(view: UIView, duration: NSTimeInterval, o
     UIView.transitionWithView(view, duration: duration, options: options, animations: {}, completion: nil)
 }
 
-public func PTFadeIn(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+public func PTFadeIn(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
     if decoded != nil {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionCrossDissolve)
     }
 }
 
-public func PTFlipFromLeft(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+public func PTFlipFromLeft(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
     if decoded != nil {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromLeft)
     }
 }
 
-public func PTFlipFromRight(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+public func PTFlipFromRight(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
     if decoded != nil {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromRight)
     }
 }
 
-public func PTFlipFromBottom(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+public func PTFlipFromBottom(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
     if decoded != nil {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromBottom)
     }
 }
 
-public func PTFlipFromTop(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+public func PTFlipFromTop(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
     if decoded != nil {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromTop)
     }
 }
 
-public func PTCurlUp(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+public func PTCurlUp(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
     if decoded != nil {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionCurlUp)
     }
 }
 
-public func PTCurlDown(duration: NSTimeInterval)(view: UIView, decoded: Any?) {
+public func PTCurlDown(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
     if decoded != nil {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionCurlDown)
     }

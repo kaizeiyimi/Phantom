@@ -80,11 +80,11 @@ class ViewController: UIViewController {
         }
     }
     
-    private func animationHandler() -> ((view: UIView, decoded: Any?) -> Void)? {
+    private func animationHandler() -> (Any? -> Void)? {
         switch animationSegment.selectedSegmentIndex {
-        case 0: return PTCurlDown(0.5)
-        case 1: return PTFadeIn(0.5)
-        case 2: return PTFlipFromBottom(0.6)
+        case 0: return PTCurlDown(imageView, duration: 0.5)
+        case 1: return PTFadeIn(imageView, duration: 0.5)
+        case 2: return PTFlipFromBottom(imageView, duration: 0.6)
         default: return nil
         }
     }

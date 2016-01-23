@@ -12,14 +12,14 @@ import UIKit
 extension UIImageView {
     
     // MARK: - helper method
-    public func pt_setImageWithURL(url: NSURL, placeholder: UIImage? = nil, animations:((UIImageView, UIImage?) -> Void)? = nil) {
+    public func pt_setImageWithURL(url: NSURL, placeholder: UIImage? = nil, animations:(UIImage? -> Void)? = nil) {
         pt_setImageWithURL(url, placeholder: placeholder, progress: nil, completion: nil, animations: animations)
     }
     
     public func pt_setImageWithURL(url: NSURL, placeholder: UIImage? = nil,
         downloader: Downloader = sharedDownloader, cache: Cache? = sharedCache,
         progress: DownloadProgressHandler?, completion: ((finished: Bool) -> Void)?,
-        animations:((UIImageView, UIImage?) -> Void)? = nil) {
+        animations:(UIImage? -> Void)? = nil) {
             pt_setImageWithURL(url, placeholder: placeholder, downloader: downloader, cache: cache, progress: progress,
                 decoder: {_, data in
                     let image = UIImage(data: data)
@@ -39,7 +39,7 @@ extension UIImageView {
     
     public func pt_setImageWithURL<T>(url: NSURL, placeholder: UIImage? = nil,
         decoder: (url: NSURL, data: NSData) -> T?, completion: T? -> Void,
-        animations:((imageView: UIImageView, decoded: T?) -> Void)? = nil) {
+        animations:(T? -> Void)? = nil) {
             pt_setImageWithURL(url, placeholder: placeholder, progress: nil, decoder: decoder, completion: completion)
     }
     
@@ -47,14 +47,14 @@ extension UIImageView {
         downloader: Downloader = sharedDownloader, cache: Cache? = sharedCache,
         progress: DownloadProgressHandler?,
         decoder: (url: NSURL, data: NSData) -> T?, completion: T? -> Void,
-        animations:((imageView: UIImageView, decoded: T?) -> Void)? = nil) {
+        animations:(T? -> Void)? = nil) {
             
             if cache != nil, let decoded = (sharedDecodedCache.objectForKey(url) as? Wrapper)?.value as? T {
                 pt_connector.cancelCurrentTask()
                 let metric = PTInvalidDownloadProgressMetric
                 progress?((metric, metric, metric))
                 completion(decoded)
-                animations?(imageView: self, decoded: decoded)
+                animations?(decoded)
             } else {
                 pt_connector.connect(url, downloader: downloader ?? sharedDownloader, cache: cache,
                     progress: {[weak self] c, tr, te in
@@ -71,7 +71,7 @@ extension UIImageView {
                             this.image = nil
                         }
                         completion(decoded)
-                        animations?(imageView: this, decoded: decoded)
+                        animations?(decoded)
                     })
                 image = placeholder
             }
