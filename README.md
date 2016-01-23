@@ -40,7 +40,7 @@ imageView.pt_setImageWithURL(GIFURL,
             self?.imageView.image = wrong
         }
     },
-    animations: PTCurlDown(0.5)) //animations is default to nil
+    animations: PTCurlDown(imageView, duration: 0.5)) //animations is default to nil
 
 ```
 
@@ -56,6 +56,6 @@ imageView.pt_setImageWithURL(localURL,
             self?.imageView.image = wrong 
         }
     },
-    animations: PTFadeIn(0.5))
+    animations: PTFadeIn(imageView, duration: 0.5))
 
 ```
