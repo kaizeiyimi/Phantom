@@ -20,6 +20,7 @@ class ViewController: UIViewController {
     @IBOutlet weak var attachImmediatelySwitch: UISwitch!
     @IBOutlet weak var useCacheSwitch: UISwitch!
     @IBOutlet weak var placeholderSwitch: UISwitch!
+    @IBOutlet weak var cancelSameTaskSwitch: UISwitch!
     
     let normalURL = NSURL(string: "http://i3.3conline.com/images/piclib/201211/21/batch/1/155069/1353489276201kiifd0ycgl_medium.jpg")!
     let GIFURL = NSURL(string: "http://bbs.byr.cn/att/Picture/0/2895510/256")!
@@ -32,6 +33,8 @@ class ViewController: UIViewController {
     
     @IBAction func changeURL(sender: UISegmentedControl) {
         imageView.xly_animatedImagePlayer = nil // remove GIF play
+        
+        imageView.pt_connector.cancelSameURLTask = cancelSameTaskSwitch.on
         
         let placeholder = placeholderSwitch.on ? UIImage(named: "placeholder") : nil
         let wrong = UIImage(named: "wrong")

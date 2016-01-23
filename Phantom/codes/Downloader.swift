@@ -29,7 +29,7 @@ public protocol Task: class {
     func cancel()
 }
 
-public protocol Downloader {
+public protocol Downloader: class {
     func download(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
     func download(url: NSURL, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
     func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task

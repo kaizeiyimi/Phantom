@@ -141,11 +141,11 @@ public func PTAttachDefaultProgress(toView toView: UIView, attachImmediately: Bo
                 toView.bounds.height * 0.618 - progress.frame.height / 2,
                 toView.bounds.width - 10 - 2 * toView.layer.borderWidth,
                 progress.frame.height)
-            progress.autoresizingMask = [.FlexibleWidth, .FlexibleTopMargin]
+            progress.autoresizingMask = .FlexibleWidth
             toView.addSubview(progress)
             return progress
         },
         update: {
-            $0.setProgress(Float($1.totalRecievedSize) / Float($1.totalExpectedSize), animated: true)
+            $0.setProgress(Float($1.totalRecievedSize) / Float($1.totalExpectedSize), animated: false)
     })
 }
