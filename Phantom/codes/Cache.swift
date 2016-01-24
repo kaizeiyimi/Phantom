@@ -9,20 +9,20 @@
 import Foundation
 
 
-public protocol Cache: class {
+public protocol DownloaderCache: class {
     func cache(url: NSURL, data: NSData)
     func cacheFromMemory(url: NSURL) -> NSData?
     func cacheFromDisk(url: NSURL) -> NSData?
     func diskURLForCachedURL(url: NSURL) -> NSURL?
 }
 
-public var sharedCache: Cache = {
+public var sharedDownloaderCache: DownloaderCache = {
     return DefaultCache()
 }()
 
 
 // MARK: DefaultCache
-public class DefaultCache: Cache {
+public class DefaultCache: DownloaderCache {
     
     private var cache = NSCache()
     

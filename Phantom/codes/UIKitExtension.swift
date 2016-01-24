@@ -17,7 +17,7 @@ extension UIImageView {
     }
     
     public func pt_setImageWithURL(url: NSURL, placeholder: UIImage? = nil,
-        downloader: Downloader = sharedDownloader, cache: Cache? = sharedCache,
+        downloader: Downloader = sharedDownloader, cache: DownloaderCache? = sharedDownloaderCache,
         progress: DownloadProgressHandler?, completion: ((finished: Bool) -> Void)?,
         animations:(UIImage? -> Void)? = nil) {
             pt_setImageWithURL(url, placeholder: placeholder, downloader: downloader, cache: cache, progress: progress,
@@ -44,7 +44,7 @@ extension UIImageView {
     }
     
     public func pt_setImageWithURL<T>(url: NSURL, placeholder: UIImage? = nil,
-        downloader: Downloader = sharedDownloader, cache: Cache? = sharedCache,
+        downloader: Downloader = sharedDownloader, cache: DownloaderCache? = sharedDownloaderCache,
         progress: DownloadProgressHandler?,
         decoder: (url: NSURL, data: NSData) -> T?, completion: T? -> Void,
         animations:(T? -> Void)? = nil) {

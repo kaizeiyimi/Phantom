@@ -38,7 +38,7 @@ class ViewController: UIViewController {
         
         let placeholder = placeholderSwitch.on ? UIImage(named: "placeholder") : nil
         let wrong = UIImage(named: "wrong")
-        let cache: Cache? = useCacheSwitch.on ? sharedCache : nil
+        let cache: DownloaderCache? = useCacheSwitch.on ? sharedDownloaderCache : nil
         
         let type = sender.selectedSegmentIndex
         

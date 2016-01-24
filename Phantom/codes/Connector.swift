@@ -21,7 +21,7 @@ final public class Connector {
         var url: NSURL
 
         weak var downloader: Downloader?
-        weak var cache: Cache?
+        weak var cache: DownloaderCache?
         
         var progressInfo: ProgressInfo?
         var trackings: [TrackingToken: (progress: DownloadProgressHandler?, completion: (decoder: (NSURL, NSData) -> Any?, completion: Any? -> Void)?)] = [:]
@@ -105,7 +105,7 @@ final public class Connector {
         cancelCurrentTask()
     }
     
-    public func connect<T>(url: NSURL, downloader: Downloader = sharedDownloader, cache: Cache? = nil,
+    public func connect<T>(url: NSURL, downloader: Downloader = sharedDownloader, cache: DownloaderCache? = nil,
         progress: DownloadProgressHandler? = nil,
         decoder: (NSURL, NSData) -> T?, completion: T? -> Void) {
             

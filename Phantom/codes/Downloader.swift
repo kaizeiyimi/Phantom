@@ -54,9 +54,9 @@ public protocol Task: class {
 // MARK: downloader
 public protocol Downloader: class {
     func download(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
-    func download(url: NSURL, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
+    func download(url: NSURL, cache: DownloaderCache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
     
-    func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
+    func download(url: NSURL, taskGenerator: TaskGenerator?, cache: DownloaderCache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
     
     func trackerForTask(task: Task) -> TaskTracker?
     
@@ -67,7 +67,7 @@ public extension Downloader {
         return download(url, taskGenerator: nil, cache: nil, progress: progress, completion: completion)
     }
     
-    func download(url: NSURL, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task {
+    func download(url: NSURL, cache: DownloaderCache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task {
         return download(url, taskGenerator: nil, cache: cache, progress: progress, completion: completion)
     }
 }
@@ -124,7 +124,7 @@ public class DefaultDownloader: Downloader {
         session.invalidateAndCancel()
     }
     
-    public func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task {
+    public func download(url: NSURL, taskGenerator: TaskGenerator?, cache: DownloaderCache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task {
         var task: Task!
         let tracker = DefaultTaskTracker()
         let taskGenerator: TaskGenerator! = (taskGenerator != nil ? taskGenerator : self.taskGenerator)
