@@ -66,6 +66,18 @@ class ViewController: UIViewController {
                 },
                 animations: animationHandler())
         }
+        
+        imageView.pt_connector.addTracking(progress: { info -> Void in
+            print("downloading:\t", info)
+            }, decoder: { (_, data) -> Int64? in
+                return Int64(data.length)
+            }) { length in
+                if let length = length {
+                    print("downloaded:\t", length, terminator: "\n\n")
+                } else {
+                    print("download failed.", terminator: "\n\n")
+                }
+        }
     }
     
     @IBAction func cancel(sender: AnyObject) {

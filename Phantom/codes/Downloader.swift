@@ -10,6 +10,7 @@ import Foundation
 
 /// -1 means progress is cancelled.
 public let PTInvalidDownloadProgressMetric: Int64 = -1
+public let PTInvalidProgressInfo = (PTInvalidDownloadProgressMetric, PTInvalidDownloadProgressMetric, PTInvalidDownloadProgressMetric)
 
 public typealias ProgressInfo = (currentSize: Int64, totalRecievedSize: Int64, totalExpectedSize: Int64)
 
@@ -86,7 +87,6 @@ extension NSURLSessionTask: Task {
 }
 
 // MARK: - default implementations
-public let PTInvalidProgressInfo = (PTInvalidDownloadProgressMetric, PTInvalidDownloadProgressMetric, PTInvalidDownloadProgressMetric)
 
 private func spinLock(lock: UnsafeMutablePointer<OSSpinLock>, @noescape _ action: ()->Void) {
     OSSpinLockLock(lock)

@@ -51,8 +51,7 @@ extension UIImageView {
             
             if cache != nil, let decoded = (sharedDecodedCache.objectForKey(url) as? Wrapper)?.value as? T {
                 pt_connector.cancelCurrentTask()
-                let metric = PTInvalidDownloadProgressMetric
-                progress?((metric, metric, metric))
+                progress?(PTInvalidProgressInfo)
                 completion(decoded)
                 animations?(decoded)
             } else {
