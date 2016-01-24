@@ -24,15 +24,41 @@ public enum Result {
     case Cancelled(url: NSURL)
 }
 
+// MARK: - Task Tracking
+final public class TrackingToken: Hashable {
+    public var hashValue: Int {
+        return "\(unsafeAddressOf(self))".hashValue
+    }
+}
+
+public func ==(lhs: TrackingToken, rhs: TrackingToken) -> Bool {
+    return lhs === rhs
+}
+
+public protocol TaskTracker: class {
+    var progressInfo: ProgressInfo? { get }
+    
+    func addTracking(progress progress: DownloadProgressHandler?, completion: DownloadCompletionHandler?) -> TrackingToken?
+    func removeTracking(token: TrackingToken?)
+}
+
+
+// Task
 public protocol Task: class {
     var cancelled: Bool { get }
     func cancel()
 }
 
+
+// MARK: downloader
 public protocol Downloader: class {
     func download(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
     func download(url: NSURL, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
+    
     func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task
+    
+    func trackerForTask(task: Task) -> TaskTracker?
+    
 }
 
 public extension Downloader {
@@ -59,17 +85,19 @@ extension NSURLSessionTask: Task {
     }
 }
 
+// MARK: - default implementations
+public let PTInvalidProgressInfo = (PTInvalidDownloadProgressMetric, PTInvalidDownloadProgressMetric, PTInvalidDownloadProgressMetric)
 
-private func notifyProgressInvalid(progress: DownloadProgressHandler?) {
-    let metric = PTInvalidDownloadProgressMetric
-    progress?((metric, metric, metric))
+private func spinLock(lock: UnsafeMutablePointer<OSSpinLock>, @noescape _ action: ()->Void) {
+    OSSpinLockLock(lock)
+    action()
+    OSSpinLockUnlock(lock)
 }
 
 // MARK: - sharedDownloader
 public var sharedDownloader: Downloader = {
     return DefaultDownloader()
 }()
-
 
 // MARK: - DefaultDownloader
 public class DefaultDownloader: Downloader {
@@ -83,6 +111,9 @@ public class DefaultDownloader: Downloader {
         return session
     }()
     
+    private var tasks: [String: TaskTracker] = [:]
+    private var lock = OS_SPINLOCK_INIT
+    
     private var taskGenerator: TaskGenerator!
     
     public init(taskGenerator: TaskGenerator? = nil) {
@@ -95,19 +126,21 @@ public class DefaultDownloader: Downloader {
     
     public func download(url: NSURL, taskGenerator: TaskGenerator?, cache: Cache?, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task {
         var task: Task!
+        let tracker = DefaultTaskTracker()
         let taskGenerator: TaskGenerator! = (taskGenerator != nil ? taskGenerator : self.taskGenerator)
-        dispatch_sync(queue) { [queue, operationQueue] in
+        dispatch_sync(queue) { [queue, operationQueue, weak self] in
             if let data = cache?.cacheFromMemory(url) {
                 task = InMemoryTask()
                 dispatch_async(queue) {
                     if task.cancelled {
-                        notifyProgressInvalid(progress)
-                        completion(.Cancelled(url: url))
+                        tracker.notifyProgress(PTInvalidProgressInfo)
+                        tracker.notifyCompletion(.Cancelled(url: url))
                     } else {
                         let length = Int64(data.length)
-                        progress?((length, length ,length))
-                        completion(.Success(url: url, data: data))
+                        tracker.notifyProgress((length, length ,length))
+                        tracker.notifyCompletion(.Success(url: url, data: data))
                     }
+                    self?.removeTracker(task)
                 }
             } else {
                 let combinedTask = CombinedDownloadTask()
@@ -115,30 +148,36 @@ public class DefaultDownloader: Downloader {
                     if let diskURL = cache?.diskURLForCachedURL(url), data = NSData(contentsOfURL: diskURL) {
                         dispatch_sync(queue) {
                             if combinedTask.cancelled {
-                                notifyProgressInvalid(progress)
-                                completion(.Cancelled(url: url))
+                                tracker.notifyProgress(PTInvalidProgressInfo)
+                                tracker.notifyCompletion(.Cancelled(url: url))
                             } else {
                                 let length = Int64(data.length)
-                                progress?((length, length ,length))
-                                completion(.Success(url: url, data: data))
+                                tracker.notifyProgress((length, length ,length))
+                                tracker.notifyCompletion(.Success(url: url, data: data))
                             }
+                            self?.removeTracker(task)
                         }
                     } else {
                         dispatch_sync(queue) {
                             if !combinedTask.cancelled {
-                                combinedTask.sessionTask = taskGenerator(url: url, progress: progress,
+                                combinedTask.sessionTask = taskGenerator(url: url,
+                                    progress: { c, tr, te in
+                                        tracker.notifyProgress((c, tr, te))
+                                    },
                                     completion: { result in
                                         let _ = combinedTask // just keep task's live
                                         if case .Success(let url, let data) = result {
                                             cache?.cache(url, data: data)
                                         } else {
-                                            notifyProgressInvalid(progress)
+                                            tracker.notifyProgress(PTInvalidProgressInfo)
                                         }
-                                        completion(result)
+                                        tracker.notifyCompletion(result)
+                                        self?.removeTracker(task)
                                 })
                             } else {
-                                notifyProgressInvalid(progress)
-                                completion(.Cancelled(url: url))
+                                tracker.notifyProgress(PTInvalidProgressInfo)
+                                tracker.notifyCompletion(.Cancelled(url: url))
+                                self?.removeTracker(task)
                             }
                         }
                     }
@@ -146,10 +185,23 @@ public class DefaultDownloader: Downloader {
                 task = combinedTask
             }
         }
+        
+        tracker.addTracking(progress: progress, completion: completion)
+        spinLock(&lock) { self.tasks["\(unsafeAddressOf(task))"] = tracker }
         return task
     }
     
-    public func taskForURL(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task {
+    public func trackerForTask(task: Task) -> TaskTracker? {
+        var tracker: TaskTracker?
+        spinLock(&lock) { tracker = self.tasks["\(unsafeAddressOf(task))"] }
+        return tracker
+    }
+    
+    private func removeTracker(task: Task) {
+        spinLock(&lock){ self.tasks.removeValueForKey("\(unsafeAddressOf(task))") }
+    }
+    
+    private func taskForURL(url: NSURL, progress: DownloadProgressHandler?, completion: DownloadCompletionHandler) -> Task {
         let sessionTask = session.downloadTaskWithURL(url)
         sessionTask.taskDelegate = TaskDelegate(url: url, progress: progress, completion: completion)
         sessionTask.resume()
@@ -158,6 +210,41 @@ public class DefaultDownloader: Downloader {
     
 }
 
+// MARK: - DefaultTaskTracker
+final public class DefaultTaskTracker: TaskTracker {
+    public private(set) var progressInfo: ProgressInfo?
+    
+    private var lock = OS_SPINLOCK_INIT
+    
+    private var trackings: [TrackingToken: (progress: DownloadProgressHandler?, completion: DownloadCompletionHandler?)] = [:]
+    
+    public func addTracking(progress progress: DownloadProgressHandler?, completion: DownloadCompletionHandler?) -> TrackingToken? {
+        guard progress != nil && completion != nil else { return nil }
+        let token = TrackingToken()
+        spinLock(&lock) { trackings[token] = (progress, completion) }
+        return token
+    }
+    
+    public func removeTracking(token: TrackingToken?) {
+        if let token = token {
+            spinLock(&lock) { trackings.removeValueForKey(token) }
+        }
+    }
+    
+    private func notifyProgress(progress: ProgressInfo) {
+        var progresses: [DownloadProgressHandler]!
+        spinLock(&lock) { progresses = self.trackings.flatMap{$1.progress} }
+        progresses.forEach { $0(progress) }
+    }
+    
+    private func notifyCompletion(result: Result) {
+        var completions: [DownloadCompletionHandler]!
+        spinLock(&lock) { completions = self.trackings.flatMap{$1.completion} }
+        completions.forEach { $0(result) }
+    }
+}
+
+// MARK: -
 
 final private class URLSessionDelegate: NSObject, NSURLSessionDownloadDelegate {
     private var queue: dispatch_queue_t
