@@ -11,9 +11,9 @@ import Foundation
 
 public protocol DownloaderCache: class {
     func cache(url: NSURL, data: NSData)
-    func cacheFromMemory(url: NSURL) -> NSData?
-    func cacheFromDisk(url: NSURL) -> NSData?
-    func diskURLForCachedURL(url: NSURL) -> NSURL?
+    func cachedDataFromMemory(url: NSURL) -> NSData?
+    func cachedDataFromDisk(url: NSURL) -> NSData?
+    func cachedDiskURLForURL(url: NSURL) -> NSURL?
 }
 
 public var sharedDownloaderCache: DownloaderCache = {
@@ -30,15 +30,15 @@ public class DefaultCache: DownloaderCache {
         cache.setObject(data, forKey: url)
     }
     
-    public func cacheFromMemory(url: NSURL) -> NSData? {
+    public func cachedDataFromMemory(url: NSURL) -> NSData? {
         return cache.objectForKey(url) as? NSData
     }
     
-    public func cacheFromDisk(url: NSURL) -> NSData? {
+    public func cachedDataFromDisk(url: NSURL) -> NSData? {
         return nil
     }
     
-    public func diskURLForCachedURL(url: NSURL) -> NSURL? {
+    public func cachedDiskURLForURL(url: NSURL) -> NSURL? {
         return nil
     }
 }

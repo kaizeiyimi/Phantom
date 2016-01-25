@@ -8,6 +8,7 @@
 
 import UIKit
 
+// TODO: refactor all free animations
 
 /// stolen from SDWebImage's decoder. just change OC to swift.
 public func decodeCGImage(image: CGImage?) -> CGImage? {
@@ -81,8 +82,8 @@ public func PTCurlUp(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
     }
 }
 
-public func PTCurlDown(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
-    if decoded != nil {
+public func PTCurlDown<T>(view: UIView, duration: NSTimeInterval)(_ decoded: Result<T>) {
+    if case .Success(_, _) = decoded {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionCurlDown)
     }
 }
@@ -94,7 +95,7 @@ public func PTCurlDown(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) 
 public func PTAttachProgressHintView<T: UIView>(toView: UIView, attachImmediately: Bool = true,
     attach: (toView: UIView) -> T,
     update: ((indicator: T, progressInfo: ProgressInfo) -> Void)?)
-    -> DownloadProgressHandler {
+    -> (ProgressInfo -> Void) {
         weak var indicator: T?
         if attachImmediately {
             indicator = attach(toView: toView)
@@ -117,7 +118,7 @@ public func PTAttachProgressHintView<T: UIView>(toView: UIView, attachImmediatel
 }
 
 /// indicator will be removed when download finished.
-public func PTAttachDefaultIndicator(style:UIActivityIndicatorViewStyle = .Gray, toView: UIView, attachImmediately: Bool = true) -> DownloadProgressHandler {
+public func PTAttachDefaultIndicator(style:UIActivityIndicatorViewStyle = .Gray, toView: UIView, attachImmediately: Bool = true) -> (ProgressInfo -> Void) {
     return PTAttachProgressHintView(toView, attachImmediately: attachImmediately,
         attach: {
         let indicator = UIActivityIndicatorView()
@@ -133,7 +134,7 @@ public func PTAttachDefaultIndicator(style:UIActivityIndicatorViewStyle = .Gray,
 }
 
 /// progress will be removed when download finished.
-public func PTAttachDefaultProgress(toView toView: UIView, attachImmediately: Bool = true) -> DownloadProgressHandler {
+public func PTAttachDefaultProgress(toView toView: UIView, attachImmediately: Bool = true) -> (ProgressInfo -> Void) {
     return PTAttachProgressHintView(toView, attachImmediately: attachImmediately,
         attach: { toView -> UIProgressView in
             let progress = UIProgressView(progressViewStyle: .Default)

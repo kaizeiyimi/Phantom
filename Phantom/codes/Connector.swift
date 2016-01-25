@@ -24,13 +24,13 @@ final public class Connector {
         weak var cache: DownloaderCache?
         
         var progressInfo: ProgressInfo?
-        var trackings: [TrackingToken: (progress: DownloadProgressHandler?, completion: (decoder: (NSURL, NSData) -> Any?, completion: Any? -> Void)?)] = [:]
+        var trackings: [TrackingToken: (progress: (ProgressInfo -> Void)?, decodeCompletion: (decoder: Result<NSData> -> Result<Any>, completion: Result<Any> -> Void)?)] = [:]
         
         init(url: NSURL) {
             self.url = url
         }
         
-        func addTracking(progress progress: DownloadProgressHandler?) -> TrackingToken? {
+        func addTracking(progress progress: (ProgressInfo -> Void)?) -> TrackingToken? {
             guard let progress = progress else { return nil }
             let token = TrackingToken()
             OSSpinLockLock(&lock)
@@ -39,14 +39,24 @@ final public class Connector {
             return token
         }
         
-        func addTracking<T>(progress progress: DownloadProgressHandler?, decoder: (NSURL, NSData) -> T?, completion: T? -> Void) -> TrackingToken? {
+        func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: Result<NSData> -> Result<T>, completion: Result<T> -> Void) -> TrackingToken? {
+            let wrapDecoder = { (raw: Result<NSData>) -> Result<Any> in
+                switch decoder(raw) {
+                case .Success(let url, let result):
+                    return .Success(url: url, data: result as Any)
+                case .Failed(let url, let error):
+                    return .Failed(url: url, error: error)
+                }
+            }
+            let wrapCompletion = { (result: Result<Any>) in
+                switch result {
+                case .Success(let url, let decoded):
+                    completion(.Success(url: url, data: decoded as! T))
+                case .Failed(let url, let error):
+                    completion(.Failed(url: url, error: error))
+                }
+            }
             let token = TrackingToken()
-            let wrapDecoder = { (url: NSURL, data: NSData) -> Any? in
-                return decoder(url, data)
-            }
-            let wrapCompletion = { (decoded: Any?) in
-                completion(decoded as? T)
-            }
             OSSpinLockLock(&lock)
             trackings[token] = (progress, (wrapDecoder, wrapCompletion))
             OSSpinLockUnlock(&lock)
@@ -68,23 +78,20 @@ final public class Connector {
             OSSpinLockUnlock(&lock)
         }
         
-        func notifyProgress(progressInfo: ProgressInfo) {
-            self.progressInfo = progressInfo
+        private func notifyProgress(progress: ProgressInfo) {
+            self.progressInfo = progress
             OSSpinLockLock(&lock)
-            trackings.forEach { _, info in
-                info.progress?(progressInfo)
-            }
+            let progresses = trackings.flatMap{$1.progress}
             OSSpinLockUnlock(&lock)
+            progresses.forEach { $0(progress) }
         }
         
-        func allCompletions() -> [(decoder: (NSURL, NSData) -> Any?, completion: Any? -> Void)] {
-            let completions: [(decoder: (NSURL, NSData) -> Any?, completion: Any? -> Void)]
+        func allDecodeCompletions() -> [(decoder: Result<NSData> -> Result<Any>, completion: Result<Any> -> Void)] {
             OSSpinLockLock(&lock)
-            completions = trackings.flatMap({$1.completion})
+            let decodeCompletions = trackings.flatMap({$1.decodeCompletion})
             OSSpinLockUnlock(&lock)
-            return completions
+            return decodeCompletions
         }
-        
     }
     
     private weak var lastTask: Task?
@@ -106,8 +113,8 @@ final public class Connector {
     }
     
     public func connect<T>(url: NSURL, downloader: Downloader = sharedDownloader, cache: DownloaderCache? = nil,
-        progress: DownloadProgressHandler? = nil,
-        decoder: (NSURL, NSData) -> T?, completion: T? -> Void) {
+        progress: (ProgressInfo -> Void)? = nil,
+        decoder: Result<NSData> -> Result<T>, completion: Result<T> -> Void) {
             
             if let lastTracker = self.lastTracker
                 where lastTracker.url == url && lastTracker.downloader === downloader
@@ -130,7 +137,7 @@ final public class Connector {
             lastTracker?.addTracking(progress: progress, decoder: decoder, completion: completion)
             
             var currentTask: Task!
-            self.lastTask = downloader.download(url, taskGenerator: taskGenerator, cache: cache,
+            self.lastTask = downloader.download(url, cache: cache,
                 progress: {[queue, weak self] c, tr, te in
                     dispatch_async(queue) {
                         self?.lastTracker?.progressInfo = (c, tr, te)
@@ -138,13 +145,15 @@ final public class Connector {
                         self?.lastTracker?.notifyProgress((c, tr, te))
                     }
                 },
+                decoder: { $0 },
                 completion: {[queue, weak self] result in
-                    guard let completions = self?.lastTracker?.allCompletions() else { return }
-                    var decoded: [Any?]
-                    if case .Success(let url, let data) = result {
-                        decoded = completions.map{$0.decoder(url, data)}
-                    } else {
-                        decoded = [Any?](count: completions.count, repeatedValue: nil)
+                    guard let decodeCompletions = self?.lastTracker?.allDecodeCompletions() else { return }
+                    var decoded: [Result<Any>]
+                    switch result {
+                    case .Success(_, _):
+                        decoded = decodeCompletions.map{ $0.decoder(result) }
+                    case .Failed(let url, let error):
+                        decoded = [Result<Any>](count: decodeCompletions.count, repeatedValue: Result.Failed(url: url, error: error))
                     }
                     dispatch_async(queue) {[weak self] in
                         if self?.lastTask === currentTask {
@@ -152,7 +161,7 @@ final public class Connector {
                             self?.lastTask = nil
                         }
                         guard let task = currentTask where !task.cancelled else { return }
-                        zip(completions, decoded).forEach{ info, value in
+                        zip(decodeCompletions, decoded).forEach{ info, value in
                             info.completion(value)
                         }
                     }
@@ -168,11 +177,11 @@ final public class Connector {
         lastTask = nil
     }
     
-    func addTracking(progress progress: DownloadProgressHandler?) -> TrackingToken? {
+    func addTracking(progress progress: (ProgressInfo -> Void)?) -> TrackingToken? {
         return lastTracker?.addTracking(progress: progress)
     }
     
-    public func addTracking<T>(progress progress: DownloadProgressHandler?, decoder: (NSURL, NSData) -> T?, completion: T? -> Void) -> TrackingToken? {
+    public func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: Result<NSData> -> Result<T>, completion: Result<T> -> Void) -> TrackingToken? {
         return lastTracker?.addTracking(progress: progress, decoder: decoder, completion: completion)
     }
     

@@ -49,42 +49,42 @@ class ViewController: UIViewController {
                 completion: {[weak self] finished in
                     if !finished { self?.imageView.image = wrong }
                 },
-                animations: animationHandler())
+                animations: PTCurlDown(imageView, duration: 0.5))
         } else if type == 1 {
-            imageView.pt_setImageWithURL(GIFURL, placeholder: placeholder,
-                cache: cache,
-                progress: progressHandler(attachImmediatelySwitch.on),
-                decoder: { _, data -> AnimatedGIFImage? in
-                    return AnimatedGIFImage(data: data) // decode as AnimatedGIFImage
-                },
-                completion: {[weak self] image in
-                    if let image = image {
-                        self?.imageView.xly_setAnimatedImage(image) // playGIF
-                    } else {
-                        self?.imageView.image = wrong
-                    }
-                },
-                animations: animationHandler())
+//            imageView.pt_setImageWithURL(GIFURL, placeholder: placeholder,
+//                cache: cache,
+//                progress: progressHandler(attachImmediatelySwitch.on),
+//                decoder: { _, data -> AnimatedGIFImage? in
+//                    return AnimatedGIFImage(data: data) // decode as AnimatedGIFImage
+//                },
+//                completion: {[weak self] image in
+//                    if let image = image {
+//                        self?.imageView.xly_setAnimatedImage(image) // playGIF
+//                    } else {
+//                        self?.imageView.image = wrong
+//                    }
+//                },
+//                animations: animationHandler())
         }
         
-        imageView.pt_connector.addTracking(progress: { info -> Void in
-            print("downloading:\t", info)
-            }, decoder: { (_, data) -> Int64? in
-                return Int64(data.length)
-            }) { length in
-                if let length = length {
-                    print("downloaded:\t", length, terminator: "\n\n")
-                } else {
-                    print("download failed.", terminator: "\n\n")
-                }
-        }
+//        imageView.pt_connector.addTracking(progress: { info -> Void in
+//            print("downloading:\t", info)
+//            }, decoder: { (_, data) -> Int64? in
+//                return Int64(data.length)
+//            }) { length in
+//                if let length = length {
+//                    print("downloaded:\t", length, terminator: "\n\n")
+//                } else {
+//                    print("download failed.", terminator: "\n\n")
+//                }
+//        }
     }
     
     @IBAction func cancel(sender: AnyObject) {
         imageView.pt_connector.cancelCurrentTask()
     }
     
-    private func progressHandler(attachImmediately: Bool) -> DownloadProgressHandler? {
+    private func progressHandler(attachImmediately: Bool) -> (ProgressInfo -> Void)? {
         switch progressSegment.selectedSegmentIndex {
         case 0: return PTAttachDefaultProgress(toView: imageView, attachImmediately: attachImmediately)
         case 1: return PTAttachDefaultIndicator(toView: imageView, attachImmediately: attachImmediately)
@@ -94,7 +94,7 @@ class ViewController: UIViewController {
     
     private func animationHandler() -> (Any? -> Void)? {
         switch animationSegment.selectedSegmentIndex {
-        case 0: return PTCurlDown(imageView, duration: 0.5)
+        case 0: return PTFadeIn(imageView, duration: 0.5)
         case 1: return PTFadeIn(imageView, duration: 0.5)
         case 2: return PTFlipFromBottom(imageView, duration: 0.6)
         default: return nil
