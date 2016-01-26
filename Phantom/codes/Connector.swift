@@ -15,51 +15,14 @@ import Foundation
 */
 final public class Connector {
     
-    final private class ConnectorTracker {
-        private var lock = OS_SPINLOCK_INIT
-        
+    final private class ConnectorTracker: DefaultTracker {
         var url: NSURL
 
         weak var downloader: Downloader?
         weak var cache: DownloaderCache?
         
-        var progressInfo: ProgressInfo?
-        var trackings: [TrackingToken: (progress: DownloadProgressHandler?, completion: (decoder: (NSURL, NSData) -> Any?, completion: Any? -> Void)?)] = [:]
-        
         init(url: NSURL) {
             self.url = url
-        }
-        
-        func addTracking(progress progress: DownloadProgressHandler?) -> TrackingToken? {
-            guard let progress = progress else { return nil }
-            let token = TrackingToken()
-            OSSpinLockLock(&lock)
-            trackings[token] = (progress, nil)
-            OSSpinLockUnlock(&lock)
-            return token
-        }
-        
-        func addTracking<T>(progress progress: DownloadProgressHandler?, decoder: (NSURL, NSData) -> T?, completion: T? -> Void) -> TrackingToken? {
-            let token = TrackingToken()
-            let wrapDecoder = { (url: NSURL, data: NSData) -> Any? in
-                return decoder(url, data)
-            }
-            let wrapCompletion = { (decoded: Any?) in
-                completion(decoded as? T)
-            }
-            OSSpinLockLock(&lock)
-            trackings[token] = (progress, (wrapDecoder, wrapCompletion))
-            OSSpinLockUnlock(&lock)
-            
-            return token
-        }
-        
-        func removeTracking(token: TrackingToken?) {
-            if let token = token {
-                OSSpinLockLock(&lock)
-                trackings.removeValueForKey(token)
-                OSSpinLockUnlock(&lock)
-            }
         }
         
         func removeAllTracking() {
@@ -68,23 +31,12 @@ final public class Connector {
             OSSpinLockUnlock(&lock)
         }
         
-        func notifyProgress(progressInfo: ProgressInfo) {
-            self.progressInfo = progressInfo
+        func allDecodeCompletions() -> [(decoder: (NSURL, NSData) -> DecodeResult<Any>, completion: Result<Any> -> Void)] {
             OSSpinLockLock(&lock)
-            trackings.forEach { _, info in
-                info.progress?(progressInfo)
-            }
+            let decodeCompletions = trackings.flatMap({$1.decoderCompletion})
             OSSpinLockUnlock(&lock)
+            return decodeCompletions
         }
-        
-        func allCompletions() -> [(decoder: (NSURL, NSData) -> Any?, completion: Any? -> Void)] {
-            let completions: [(decoder: (NSURL, NSData) -> Any?, completion: Any? -> Void)]
-            OSSpinLockLock(&lock)
-            completions = trackings.flatMap({$1.completion})
-            OSSpinLockUnlock(&lock)
-            return completions
-        }
-        
     }
     
     private weak var lastTask: Task?
@@ -106,15 +58,17 @@ final public class Connector {
     }
     
     public func connect<T>(url: NSURL, downloader: Downloader = sharedDownloader, cache: DownloaderCache? = nil,
-        progress: DownloadProgressHandler? = nil,
-        decoder: (NSURL, NSData) -> T?, completion: T? -> Void) {
+        progress: (ProgressInfo -> Void)? = nil,
+        decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void) {
             
             if let lastTracker = self.lastTracker
                 where lastTracker.url == url && lastTracker.downloader === downloader
                     && (cache == nil || lastTracker.cache === cache)
                     && !cancelSameURLTask {
+                        let preProgress = lastTracker.progressInfo
                         lastTracker.notifyProgress(PTInvalidProgressInfo)
                         lastTracker.removeAllTracking()
+                        lastTracker.progressInfo = preProgress
                         lastTracker.addTracking(progress: progress, decoder: decoder, completion: completion)
                         if let progressInfo = lastTracker.progressInfo {
                             lastTracker.notifyProgress(progressInfo)
@@ -130,7 +84,7 @@ final public class Connector {
             lastTracker?.addTracking(progress: progress, decoder: decoder, completion: completion)
             
             var currentTask: Task!
-            self.lastTask = downloader.download(url, taskGenerator: taskGenerator, cache: cache,
+            self.lastTask = downloader.download(url, cache: cache,
                 progress: {[queue, weak self] c, tr, te in
                     dispatch_async(queue) {
                         self?.lastTracker?.progressInfo = (c, tr, te)
@@ -138,21 +92,34 @@ final public class Connector {
                         self?.lastTracker?.notifyProgress((c, tr, te))
                     }
                 },
+                decoder: { _, data in
+                    return .Success(data: data)
+                },
                 completion: {[queue, weak self] result in
-                    guard let completions = self?.lastTracker?.allCompletions() else { return }
-                    var decoded: [Any?]
-                    if case .Success(let url, let data) = result {
-                        decoded = completions.map{$0.decoder(url, data)}
-                    } else {
-                        decoded = [Any?](count: completions.count, repeatedValue: nil)
+                    guard let decodeCompletions = self?.lastTracker?.allDecodeCompletions() else { return }
+                    
+                    let decoded: [Result<Any>]
+                    switch result {
+                    case .Success(let url, let data):
+                        decoded = decodeCompletions.map {
+                            switch $0.decoder(url, data) {
+                            case .Success(let d):
+                                return .Success(url: url, data: d as Any)
+                            case .Failed(let error):
+                                return .Failed(url: url, error: error)
+                            }
+                        }
+                    case .Failed(let url, let error):
+                        decoded = [Result<Any>](count: decodeCompletions.count, repeatedValue: .Failed(url: url, error: error))
                     }
+
                     dispatch_async(queue) {[weak self] in
                         if self?.lastTask === currentTask {
                             self?.lastTracker = nil
                             self?.lastTask = nil
                         }
                         guard let task = currentTask where !task.cancelled else { return }
-                        zip(completions, decoded).forEach{ info, value in
+                        zip(decodeCompletions, decoded).forEach{ info, value in
                             info.completion(value)
                         }
                     }
@@ -163,16 +130,19 @@ final public class Connector {
     
     public func cancelCurrentTask() {
         lastTask?.cancel()
-        lastTracker?.notifyProgress(PTInvalidProgressInfo)
-        lastTracker = nil
+        if let tracker = lastTracker {
+            tracker.notifyProgress(PTInvalidProgressInfo)
+            tracker.notifyCompletion(Result<NSData>.Failed(url: tracker.url, error: canncelledError(tracker.url)))
+            lastTracker = nil
+        }
         lastTask = nil
     }
     
-    func addTracking(progress progress: DownloadProgressHandler?) -> TrackingToken? {
+    func addTracking(progress progress: (ProgressInfo -> Void)) -> TrackingToken? {
         return lastTracker?.addTracking(progress: progress)
     }
     
-    public func addTracking<T>(progress progress: DownloadProgressHandler?, decoder: (NSURL, NSData) -> T?, completion: T? -> Void) -> TrackingToken? {
+    public func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void) -> TrackingToken? {
         return lastTracker?.addTracking(progress: progress, decoder: decoder, completion: completion)
     }
     

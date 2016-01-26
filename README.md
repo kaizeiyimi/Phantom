@@ -31,11 +31,11 @@ imageView.pt_setImageWithURL(GIFURL,
     downloader: sharedDownloader,  //default to sharedDownloader
     cache: cache,  //default to sharedDownloaderCache, set to nil to cancel cache.
     progress: PTAttachDefaultProgress(toView: imageView),
-    decoder: { _, data -> AnimatedGIFImage? in
-        return AnimatedGIFImage(data: data) // decode as AnimatedGIFImage
+    decoder: { _, data -> DecodeResult<AnimatedGIFImage> in
+        return .Success(data: AnimatedGIFImage(data: data)) // decode as AnimatedGIFImage
     },
-    completion: {[weak self] image in
-        if let image = image {
+    completion: {[weak self] result in
+        if case .Success(_, let image) = result {
             self?.imageView.xly_setAnimatedImage(image) // playGIF
         } else {
             self?.imageView.image = wrong

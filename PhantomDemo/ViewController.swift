@@ -54,11 +54,11 @@ class ViewController: UIViewController {
             imageView.pt_setImageWithURL(GIFURL, placeholder: placeholder,
                 cache: cache,
                 progress: progressHandler(attachImmediatelySwitch.on),
-                decoder: { _, data -> AnimatedGIFImage? in
-                    return AnimatedGIFImage(data: data) // decode as AnimatedGIFImage
+                decoder: { _, data -> DecodeResult<AnimatedGIFImage> in
+                    return .Success(data: AnimatedGIFImage(data: data)) // decode as AnimatedGIFImage
                 },
-                completion: {[weak self] image in
-                    if let image = image {
+                completion: {[weak self] result in
+                    if case .Success(_, let image) = result {
                         self?.imageView.xly_setAnimatedImage(image) // playGIF
                     } else {
                         self?.imageView.image = wrong
@@ -68,14 +68,19 @@ class ViewController: UIViewController {
         }
         
         imageView.pt_connector.addTracking(progress: { info -> Void in
-            print("downloading:\t", info)
-            }, decoder: { (_, data) -> Int64? in
-                return Int64(data.length)
-            }) { length in
-                if let length = length {
+            if info.totalRecievedSize == PTInvalidDownloadProgressMetric {  // some error
+                print("downloading error: \t", info)
+            } else {
+                print("downloading:\t", info)
+            }
+            }, decoder: { _, data in
+                return .Success(data: Int64(data.length))
+            }) { result in
+                switch result {
+                case .Success(_, let length):
                     print("downloaded:\t", length, terminator: "\n\n")
-                } else {
-                    print("download failed.", terminator: "\n\n")
+                case .Failed(_, let error):
+                    print("download failed. ", error, terminator: "\n\n")
                 }
         }
     }
@@ -84,7 +89,7 @@ class ViewController: UIViewController {
         imageView.pt_connector.cancelCurrentTask()
     }
     
-    private func progressHandler(attachImmediately: Bool) -> DownloadProgressHandler? {
+    private func progressHandler(attachImmediately: Bool) -> (ProgressInfo -> Void)? {
         switch progressSegment.selectedSegmentIndex {
         case 0: return PTAttachDefaultProgress(toView: imageView, attachImmediately: attachImmediately)
         case 1: return PTAttachDefaultIndicator(toView: imageView, attachImmediately: attachImmediately)
@@ -92,7 +97,7 @@ class ViewController: UIViewController {
         }
     }
     
-    private func animationHandler() -> (Any? -> Void)? {
+    private func animationHandler<T>() -> (Result<T> -> Void)? {
         switch animationSegment.selectedSegmentIndex {
         case 0: return PTCurlDown(imageView, duration: 0.5)
         case 1: return PTFadeIn(imageView, duration: 0.5)

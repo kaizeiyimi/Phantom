@@ -12,48 +12,53 @@ import UIKit
 extension UIImageView {
     
     // MARK: - helper method
-    public func pt_setImageWithURL(url: NSURL, placeholder: UIImage? = nil, animations:(UIImage? -> Void)? = nil) {
+    public func pt_setImageWithURL(url: NSURL, placeholder: UIImage? = nil, animations:(Result<UIImage> -> Void)? = nil) {
         pt_setImageWithURL(url, placeholder: placeholder, progress: nil, completion: nil, animations: animations)
     }
     
     public func pt_setImageWithURL(url: NSURL, placeholder: UIImage? = nil,
         downloader: Downloader = sharedDownloader, cache: DownloaderCache? = sharedDownloaderCache,
-        progress: DownloadProgressHandler?, completion: ((finished: Bool) -> Void)?,
-        animations:(UIImage? -> Void)? = nil) {
+        progress: (ProgressInfo -> Void)?, completion: ((finished: Bool) -> Void)?,
+        animations:(Result<UIImage> -> Void)? = nil) {
             pt_setImageWithURL(url, placeholder: placeholder, downloader: downloader, cache: cache, progress: progress,
-                decoder: {_, data in
-                    let image = UIImage(data: data)
-                    if let cgImage = decodeCGImage(image?.CGImage) {
-                        return UIImage(CGImage: cgImage)
-                    } else {
-                        return image
+                decoder: { _, data in
+                    guard var image = UIImage(data: data) else {
+                        return .Failed(error: nil)
                     }
+                    if let cgImage = decodeCGImage(image.CGImage) {
+                        image = UIImage(CGImage: cgImage)
+                    }
+                    return .Success(data: image)
                 },
-                completion: {[weak self] image in
+                completion: {[weak self] result in
                     guard let this = self else { return }
-                    this.image = image
-                    completion?(finished: image != nil)
+                    if case .Success(_, let image) = result {
+                        this.image = image
+                        completion?(finished: true)
+                    } else {
+                        completion?(finished: false)
+                    }
                 },
                 animations: animations)
     }
     
     public func pt_setImageWithURL<T>(url: NSURL, placeholder: UIImage? = nil,
-        decoder: (url: NSURL, data: NSData) -> T?, completion: T? -> Void,
-        animations:(T? -> Void)? = nil) {
+        decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void,
+        animations:(Result<T> -> Void)? = nil) {
             pt_setImageWithURL(url, placeholder: placeholder, progress: nil, decoder: decoder, completion: completion)
     }
     
     public func pt_setImageWithURL<T>(url: NSURL, placeholder: UIImage? = nil,
         downloader: Downloader = sharedDownloader, cache: DownloaderCache? = sharedDownloaderCache,
-        progress: DownloadProgressHandler?,
-        decoder: (url: NSURL, data: NSData) -> T?, completion: T? -> Void,
-        animations:(T? -> Void)? = nil) {
+        progress: (ProgressInfo -> Void)?,
+        decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void,
+        animations:(Result<T> -> Void)? = nil) {
             
             if cache != nil, let decoded = (sharedDecodedCache.objectForKey(url) as? Wrapper)?.value as? T {
                 pt_connector.cancelCurrentTask()
                 progress?(PTInvalidProgressInfo)
-                completion(decoded)
-                animations?(decoded)
+                completion(.Success(url: url, data: decoded))
+                animations?(.Success(url: url, data: decoded))
             } else {
                 pt_connector.connect(url, downloader: downloader ?? sharedDownloader, cache: cache,
                     progress: {[weak self] c, tr, te in
@@ -61,16 +66,17 @@ extension UIImageView {
                         progress(currentSize: c, totalRecievedSize: tr, totalExpectedSize: te)
                     },
                     decoder: decoder,
-                    completion:{[weak self] decoded in
-                        if let decoded = decoded {
+                    completion:{[weak self] result in
+                        switch result {
+                        case .Success(let url, let decoded):
                             sharedDecodedCache.setObject(Wrapper(decoded), forKey: url)
+                        case .Failed(_, _):
+                            self?.image = nil
                         }
-                        guard let this = self else { return }
-                        if decoded == nil {
-                            this.image = nil
-                        }
-                        completion(decoded)
-                        animations?(decoded)
+                        
+                        guard let _ = self else { return }
+                        completion(result)
+                        animations?(result)
                     })
                 image = placeholder
             }
