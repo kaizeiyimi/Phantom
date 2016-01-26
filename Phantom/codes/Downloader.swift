@@ -115,6 +115,11 @@ public class DefaultDownloader: Downloader {
     
     private var taskGenerator: TaskGenerator?
     
+    /// if you use default `TaskGenerator`, you can set `URLRequestGenerator` to generate `NSURLRequest` with custom config.
+    public var URLRequestGenerator: NSURL -> NSURLRequest = { url in
+        return NSURLRequest(URL: url)
+    }
+    
     public init(generator: TaskGenerator? = nil) {
         self.taskGenerator = generator
     }
@@ -209,7 +214,7 @@ public class DefaultDownloader: Downloader {
     }
     
     private func taskForURL(url: NSURL, progress: (ProgressInfo -> Void)?, completion: Result<NSData> -> Void) -> Task {
-        let sessionTask = session.downloadTaskWithURL(url)
+        let sessionTask = session.downloadTaskWithRequest(URLRequestGenerator(url))
         sessionTask.taskDelegate = TaskDelegate(url: url, progress: progress, completion: completion)
         sessionTask.resume()
         return sessionTask

@@ -49,7 +49,6 @@ final public class Connector {
     /// default is *false*. two task are treated same only if **URL** is same, **downloader** is same and **cache** is nil or same.
     public var cancelSameURLTask = false
     public var queue = dispatch_get_main_queue()
-    public var taskGenerator: TaskGenerator?
     
     public init() {}
     
