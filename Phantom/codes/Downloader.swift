@@ -21,6 +21,11 @@ public enum Result<T> {
     case Failed(url: NSURL, error: ErrorType?)
 }
 
+public enum DecodeResult<T> {
+    case Success(data: T)
+    case Failed(error: ErrorType?)
+}
+
 // MARK: - Task Tracking
 final public class TrackingToken: Hashable {
     public var hashValue: Int {
@@ -36,7 +41,7 @@ public protocol Tracker: class {
     var progressInfo: ProgressInfo? { get }
     
     func addTracking(progress progress: (ProgressInfo -> Void)) -> TrackingToken?
-    func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: Result<NSData> -> Result<T> , completion: Result<T> -> Void) -> TrackingToken?
+    func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken?
     func removeTracking(token: TrackingToken?)
 }
 
@@ -50,15 +55,15 @@ public protocol Task: class {
 
 // MARK: downloader
 public protocol Downloader: class {
-    func download<T>(url: NSURL, progress: (ProgressInfo -> Void)?, decoder: Result<NSData> -> Result<T> , completion: Result<T> -> Void) -> Task
-    func download<T>(url: NSURL, cache: DownloaderCache?, progress: (ProgressInfo -> Void)?, decoder: Result<NSData> -> Result<T> , completion: Result<T> -> Void) -> Task
+    func download<T>(url: NSURL, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task
+    func download<T>(url: NSURL, cache: DownloaderCache?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task
     
     func trackerForTask(task: Task) -> Tracker?
     
 }
 
 public extension Downloader {
-    func download<T>(url: NSURL, progress: (ProgressInfo -> Void)?, decoder: Result<NSData> -> Result<T> , completion: Result<T> -> Void) -> Task {
+    func download<T>(url: NSURL, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task {
         return download(url, cache: nil, progress: progress, decoder: decoder, completion: completion)
     }
 }
@@ -109,7 +114,7 @@ public class DefaultDownloader: Downloader {
         session.invalidateAndCancel()
     }
     
-    public func download<T>(url: NSURL, cache: DownloaderCache?, progress: (ProgressInfo -> Void)?, decoder: Result<NSData> -> Result<T> , completion: Result<T> -> Void) -> Task {
+    public func download<T>(url: NSURL, cache: DownloaderCache?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task {
         var task: Task!
         let tracker = DefaultTracker()
         var taskGenerator: TaskGenerator! = self.taskGenerator  // swift compiler bug. cannot use ?: or ??
@@ -206,7 +211,7 @@ public class DefaultDownloader: Downloader {
 // MARK: - DefaultTaskTracker
 final public class DefaultTracker: Tracker {
     
-    typealias DecoderCompletion = (decoder: Result<NSData> -> Result<Any>, completion: Result<Any> -> Void)
+    typealias DecoderCompletion = (decoder: (NSURL, NSData) -> DecodeResult<Any>, completion: Result<Any> -> Void)
     
     public private(set) var progressInfo: ProgressInfo?
     private var lock = OS_SPINLOCK_INIT
@@ -222,12 +227,12 @@ final public class DefaultTracker: Tracker {
         return token
     }
     
-    public func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: Result<NSData> -> Result<T> , completion: Result<T> -> Void) -> TrackingToken? {
+    public func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken? {
         let token = TrackingToken()
-        let wrapDecoder = { (raw: Result<NSData>) -> Result<Any> in
-            switch decoder(raw) {
-            case .Success(let url, let result): return .Success(url: url, data: result as Any)
-            case .Failed(let url, let error): return .Failed(url: url, error: error)
+        let wrapDecoder = { (url: NSURL, data: NSData) -> DecodeResult<Any> in
+            switch decoder(url, data) {
+            case .Success(let result): return .Success(data: result as Any)
+            case .Failed(let error): return .Failed(error: error)
             }
         }
         let wrapCompletion = { (decoded: Result<Any>) in
@@ -262,7 +267,22 @@ final public class DefaultTracker: Tracker {
         OSSpinLockLock(&lock)
         let decodeCompletions = trackings.flatMap{$1.decoderCompletion}
         OSSpinLockUnlock(&lock)
-        let decoded = decodeCompletions.map{$0.decoder(result)}
+        
+        let decoded: [Result<Any>]
+        switch result {
+        case .Success(let url, let data):
+            decoded = decodeCompletions.map {
+                switch $0.decoder(url, data) {
+                case .Success(let d):
+                    return .Success(url: url, data: d as Any)
+                case .Failed(let error):
+                    return .Failed(url: url, error: error)
+                }
+            }
+        case .Failed(let url, let error):
+            decoded = [Result<Any>](count: decodeCompletions.count, repeatedValue: .Failed(url: url, error: error))
+        }
+        
         zip(decodeCompletions, decoded).forEach{ decodeCompletion, data in
             decodeCompletion.completion(data)
         }

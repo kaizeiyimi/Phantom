@@ -46,38 +46,38 @@ private func simpleTransitionAnimation(view: UIView, duration: NSTimeInterval, o
     UIView.transitionWithView(view, duration: duration, options: options, animations: {}, completion: nil)
 }
 
-public func PTFadeIn(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
-    if decoded != nil {
+public func PTFadeIn<T>(view: UIView, duration: NSTimeInterval)(_ decoded: Result<T>) {
+    if case .Success(_, _) = decoded {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionCrossDissolve)
     }
 }
 
-public func PTFlipFromLeft(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
-    if decoded != nil {
+public func PTFlipFromLeft<T>(view: UIView, duration: NSTimeInterval)(_ decoded: Result<T>) {
+    if case .Success(_, _) = decoded {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromLeft)
     }
 }
 
-public func PTFlipFromRight(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
-    if decoded != nil {
+public func PTFlipFromRight<T>(view: UIView, duration: NSTimeInterval)(_ decoded: Result<T>) {
+    if case .Success(_, _) = decoded {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromRight)
     }
 }
 
-public func PTFlipFromBottom(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
-    if decoded != nil {
+public func PTFlipFromBottom<T>(view: UIView, duration: NSTimeInterval)(_ decoded: Result<T>) {
+    if case .Success(_, _) = decoded {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromBottom)
     }
 }
 
-public func PTFlipFromTop(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
-    if decoded != nil {
+public func PTFlipFromTop<T>(view: UIView, duration: NSTimeInterval)(_ decoded: Result<T>) {
+    if case .Success(_, _) = decoded {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionFlipFromTop)
     }
 }
 
-public func PTCurlUp(view: UIView, duration: NSTimeInterval)(_ decoded: Any?) {
-    if decoded != nil {
+public func PTCurlUp<T>(view: UIView, duration: NSTimeInterval)(_ decoded: Result<T>) {
+    if case .Success(_, _) = decoded {
         simpleTransitionAnimation(view, duration: duration, options: .TransitionCurlUp)
     }
 }

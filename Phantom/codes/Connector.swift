@@ -24,7 +24,7 @@ final public class Connector {
         weak var cache: DownloaderCache?
         
         var progressInfo: ProgressInfo?
-        var trackings: [TrackingToken: (progress: (ProgressInfo -> Void)?, decodeCompletion: (decoder: Result<NSData> -> Result<Any>, completion: Result<Any> -> Void)?)] = [:]
+        var trackings: [TrackingToken: (progress: (ProgressInfo -> Void)?, decodeCompletion: (decoder: (NSURL, NSData) -> DecodeResult<Any>, completion: Result<Any> -> Void)?)] = [:]
         
         init(url: NSURL) {
             self.url = url
@@ -39,13 +39,11 @@ final public class Connector {
             return token
         }
         
-        func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: Result<NSData> -> Result<T>, completion: Result<T> -> Void) -> TrackingToken? {
-            let wrapDecoder = { (raw: Result<NSData>) -> Result<Any> in
-                switch decoder(raw) {
-                case .Success(let url, let result):
-                    return .Success(url: url, data: result as Any)
-                case .Failed(let url, let error):
-                    return .Failed(url: url, error: error)
+        func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void) -> TrackingToken? {
+            let wrapDecoder = { (url: NSURL, data: NSData) -> DecodeResult<Any> in
+                switch decoder(url, data) {
+                case .Success(let result): return .Success(data: result as Any)
+                case .Failed(let error): return .Failed(error: error)
                 }
             }
             let wrapCompletion = { (result: Result<Any>) in
@@ -86,7 +84,7 @@ final public class Connector {
             progresses.forEach { $0(progress) }
         }
         
-        func allDecodeCompletions() -> [(decoder: Result<NSData> -> Result<Any>, completion: Result<Any> -> Void)] {
+        func allDecodeCompletions() -> [(decoder: (NSURL, NSData) -> DecodeResult<Any>, completion: Result<Any> -> Void)] {
             OSSpinLockLock(&lock)
             let decodeCompletions = trackings.flatMap({$1.decodeCompletion})
             OSSpinLockUnlock(&lock)
@@ -114,7 +112,7 @@ final public class Connector {
     
     public func connect<T>(url: NSURL, downloader: Downloader = sharedDownloader, cache: DownloaderCache? = nil,
         progress: (ProgressInfo -> Void)? = nil,
-        decoder: Result<NSData> -> Result<T>, completion: Result<T> -> Void) {
+        decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void) {
             
             if let lastTracker = self.lastTracker
                 where lastTracker.url == url && lastTracker.downloader === downloader
@@ -145,16 +143,27 @@ final public class Connector {
                         self?.lastTracker?.notifyProgress((c, tr, te))
                     }
                 },
-                decoder: { $0 },
+                decoder: { _, data in
+                    return .Success(data: data)
+                },
                 completion: {[queue, weak self] result in
                     guard let decodeCompletions = self?.lastTracker?.allDecodeCompletions() else { return }
-                    var decoded: [Result<Any>]
+                    
+                    let decoded: [Result<Any>]
                     switch result {
-                    case .Success(_, _):
-                        decoded = decodeCompletions.map{ $0.decoder(result) }
+                    case .Success(let url, let data):
+                        decoded = decodeCompletions.map {
+                            switch $0.decoder(url, data) {
+                            case .Success(let d):
+                                return .Success(url: url, data: d as Any)
+                            case .Failed(let error):
+                                return .Failed(url: url, error: error)
+                            }
+                        }
                     case .Failed(let url, let error):
-                        decoded = [Result<Any>](count: decodeCompletions.count, repeatedValue: Result.Failed(url: url, error: error))
+                        decoded = [Result<Any>](count: decodeCompletions.count, repeatedValue: .Failed(url: url, error: error))
                     }
+
                     dispatch_async(queue) {[weak self] in
                         if self?.lastTask === currentTask {
                             self?.lastTracker = nil
@@ -181,7 +190,7 @@ final public class Connector {
         return lastTracker?.addTracking(progress: progress)
     }
     
-    public func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: Result<NSData> -> Result<T>, completion: Result<T> -> Void) -> TrackingToken? {
+    public func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void) -> TrackingToken? {
         return lastTracker?.addTracking(progress: progress, decoder: decoder, completion: completion)
     }
     

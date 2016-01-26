@@ -49,22 +49,22 @@ class ViewController: UIViewController {
                 completion: {[weak self] finished in
                     if !finished { self?.imageView.image = wrong }
                 },
-                animations: PTCurlDown(imageView, duration: 0.5))
+                animations: animationHandler())
         } else if type == 1 {
-//            imageView.pt_setImageWithURL(GIFURL, placeholder: placeholder,
-//                cache: cache,
-//                progress: progressHandler(attachImmediatelySwitch.on),
-//                decoder: { _, data -> AnimatedGIFImage? in
-//                    return AnimatedGIFImage(data: data) // decode as AnimatedGIFImage
-//                },
-//                completion: {[weak self] image in
-//                    if let image = image {
-//                        self?.imageView.xly_setAnimatedImage(image) // playGIF
-//                    } else {
-//                        self?.imageView.image = wrong
-//                    }
-//                },
-//                animations: animationHandler())
+            imageView.pt_setImageWithURL(GIFURL, placeholder: placeholder,
+                cache: cache,
+                progress: progressHandler(attachImmediatelySwitch.on),
+                decoder: { _, data -> DecodeResult<AnimatedGIFImage> in
+                    return .Success(data: AnimatedGIFImage(data: data)) // decode as AnimatedGIFImage
+                },
+                completion: {[weak self] result in
+                    if case .Success(_, let image) = result {
+                        self?.imageView.xly_setAnimatedImage(image) // playGIF
+                    } else {
+                        self?.imageView.image = wrong
+                    }
+                },
+                animations: animationHandler())
         }
         
 //        imageView.pt_connector.addTracking(progress: { info -> Void in
@@ -92,9 +92,9 @@ class ViewController: UIViewController {
         }
     }
     
-    private func animationHandler() -> (Any? -> Void)? {
+    private func animationHandler<T>() -> (Result<T> -> Void)? {
         switch animationSegment.selectedSegmentIndex {
-        case 0: return PTFadeIn(imageView, duration: 0.5)
+        case 0: return PTCurlDown(imageView, duration: 0.5)
         case 1: return PTFadeIn(imageView, duration: 0.5)
         case 2: return PTFlipFromBottom(imageView, duration: 0.6)
         default: return nil
