@@ -15,59 +15,14 @@ import Foundation
 */
 final public class Connector {
     
-    final private class ConnectorTracker {
-        private var lock = OS_SPINLOCK_INIT
-        
+    final private class ConnectorTracker: DefaultTracker {
         var url: NSURL
 
         weak var downloader: Downloader?
         weak var cache: DownloaderCache?
         
-        var progressInfo: ProgressInfo?
-        var trackings: [TrackingToken: (progress: (ProgressInfo -> Void)?, decodeCompletion: (decoder: (NSURL, NSData) -> DecodeResult<Any>, completion: Result<Any> -> Void)?)] = [:]
-        
         init(url: NSURL) {
             self.url = url
-        }
-        
-        func addTracking(progress progress: (ProgressInfo -> Void)?) -> TrackingToken? {
-            guard let progress = progress else { return nil }
-            let token = TrackingToken()
-            OSSpinLockLock(&lock)
-            trackings[token] = (progress, nil)
-            OSSpinLockUnlock(&lock)
-            return token
-        }
-        
-        func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void) -> TrackingToken? {
-            let wrapDecoder = { (url: NSURL, data: NSData) -> DecodeResult<Any> in
-                switch decoder(url, data) {
-                case .Success(let result): return .Success(data: result as Any)
-                case .Failed(let error): return .Failed(error: error)
-                }
-            }
-            let wrapCompletion = { (result: Result<Any>) in
-                switch result {
-                case .Success(let url, let decoded):
-                    completion(.Success(url: url, data: decoded as! T))
-                case .Failed(let url, let error):
-                    completion(.Failed(url: url, error: error))
-                }
-            }
-            let token = TrackingToken()
-            OSSpinLockLock(&lock)
-            trackings[token] = (progress, (wrapDecoder, wrapCompletion))
-            OSSpinLockUnlock(&lock)
-            
-            return token
-        }
-        
-        func removeTracking(token: TrackingToken?) {
-            if let token = token {
-                OSSpinLockLock(&lock)
-                trackings.removeValueForKey(token)
-                OSSpinLockUnlock(&lock)
-            }
         }
         
         func removeAllTracking() {
@@ -76,17 +31,9 @@ final public class Connector {
             OSSpinLockUnlock(&lock)
         }
         
-        private func notifyProgress(progress: ProgressInfo) {
-            self.progressInfo = progress
-            OSSpinLockLock(&lock)
-            let progresses = trackings.flatMap{$1.progress}
-            OSSpinLockUnlock(&lock)
-            progresses.forEach { $0(progress) }
-        }
-        
         func allDecodeCompletions() -> [(decoder: (NSURL, NSData) -> DecodeResult<Any>, completion: Result<Any> -> Void)] {
             OSSpinLockLock(&lock)
-            let decodeCompletions = trackings.flatMap({$1.decodeCompletion})
+            let decodeCompletions = trackings.flatMap({$1.decoderCompletion})
             OSSpinLockUnlock(&lock)
             return decodeCompletions
         }
@@ -118,8 +65,10 @@ final public class Connector {
                 where lastTracker.url == url && lastTracker.downloader === downloader
                     && (cache == nil || lastTracker.cache === cache)
                     && !cancelSameURLTask {
+                        let preProgress = lastTracker.progressInfo
                         lastTracker.notifyProgress(PTInvalidProgressInfo)
                         lastTracker.removeAllTracking()
+                        lastTracker.progressInfo = preProgress
                         lastTracker.addTracking(progress: progress, decoder: decoder, completion: completion)
                         if let progressInfo = lastTracker.progressInfo {
                             lastTracker.notifyProgress(progressInfo)
@@ -181,12 +130,15 @@ final public class Connector {
     
     public func cancelCurrentTask() {
         lastTask?.cancel()
-        lastTracker?.notifyProgress(PTInvalidProgressInfo)
-        lastTracker = nil
+        if let tracker = lastTracker {
+            tracker.notifyProgress(PTInvalidProgressInfo)
+            tracker.notifyCompletion(Result<NSData>.Failed(url: tracker.url, error: canncelledError(tracker.url)))
+            lastTracker = nil
+        }
         lastTask = nil
     }
     
-    func addTracking(progress progress: (ProgressInfo -> Void)?) -> TrackingToken? {
+    func addTracking(progress progress: (ProgressInfo -> Void)) -> TrackingToken? {
         return lastTracker?.addTracking(progress: progress)
     }
     

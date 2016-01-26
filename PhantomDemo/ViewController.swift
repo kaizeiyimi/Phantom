@@ -67,17 +67,22 @@ class ViewController: UIViewController {
                 animations: animationHandler())
         }
         
-//        imageView.pt_connector.addTracking(progress: { info -> Void in
-//            print("downloading:\t", info)
-//            }, decoder: { (_, data) -> Int64? in
-//                return Int64(data.length)
-//            }) { length in
-//                if let length = length {
-//                    print("downloaded:\t", length, terminator: "\n\n")
-//                } else {
-//                    print("download failed.", terminator: "\n\n")
-//                }
-//        }
+        imageView.pt_connector.addTracking(progress: { info -> Void in
+            if info.totalRecievedSize == PTInvalidDownloadProgressMetric {  // some error
+                print("downloading error: \t", info)
+            } else {
+                print("downloading:\t", info)
+            }
+            }, decoder: { _, data in
+                return .Success(data: Int64(data.length))
+            }) { result in
+                switch result {
+                case .Success(_, let length):
+                    print("downloaded:\t", length, terminator: "\n\n")
+                case .Failed(_, let error):
+                    print("download failed. ", error, terminator: "\n\n")
+                }
+        }
     }
     
     @IBAction func cancel(sender: AnyObject) {

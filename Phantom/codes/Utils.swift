@@ -8,7 +8,6 @@
 
 import UIKit
 
-// TODO: refactor all free animations
 
 /// stolen from SDWebImage's decoder. just change OC to swift.
 public func decodeCGImage(image: CGImage?) -> CGImage? {
@@ -92,7 +91,8 @@ public func PTCurlDown<T>(view: UIView, duration: NSTimeInterval)(_ decoded: Res
 // MARK: helper progress view method
 
 /// indicator will be removed when download finished.
-public func PTAttachProgressHintView<T: UIView>(toView: UIView, attachImmediately: Bool = true,
+public func PTAttachProgressHintView<T: UIView>(toView: UIView,
+    attachImmediately: Bool = true, removeImmediately: Bool = true,
     attach: (toView: UIView) -> T,
     update: ((indicator: T, progressInfo: ProgressInfo) -> Void)?)
     -> (ProgressInfo -> Void) {
@@ -108,8 +108,12 @@ public func PTAttachProgressHintView<T: UIView>(toView: UIView, attachImmediatel
                 update(indicator: indicator, progressInfo: (currentSize, totalRecievedSize, totalExpectedSize))
             }
             if totalRecievedSize >= totalExpectedSize, let indicator = indicator {
-                dispatch_async(dispatch_get_main_queue()) {
+                if removeImmediately {
                     indicator.removeFromSuperview()
+                } else {
+                    dispatch_async(dispatch_get_main_queue()) {
+                        indicator.removeFromSuperview()
+                    }
                 }
             }
         }

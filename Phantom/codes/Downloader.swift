@@ -42,6 +42,7 @@ public protocol Tracker: class {
     
     func addTracking(progress progress: (ProgressInfo -> Void)) -> TrackingToken?
     func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken?
+    
     func removeTracking(token: TrackingToken?)
 }
 
@@ -83,6 +84,14 @@ extension NSURLSessionTask: Task {
 }
 
 // MARK: -
+
+func canncelledError(url: NSURL) -> NSError {
+    return NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled, userInfo: [
+        NSURLErrorFailingURLErrorKey: url,
+        NSURLErrorFailingURLStringErrorKey: url.absoluteString,
+        NSLocalizedDescriptionKey: "cancelled"
+        ])
+}
 
 // MARK: - sharedDownloader
 public var sharedDownloader: Downloader = {
@@ -127,7 +136,7 @@ public class DefaultDownloader: Downloader {
                 dispatch_async(queue) {
                     if task.cancelled {
                         tracker.notifyProgress(PTInvalidProgressInfo)
-                        tracker.notifyCompletion(.Failed(url: url, error: nil))
+                        tracker.notifyCompletion(.Failed(url: url, error: canncelledError(url)))
                     } else {
                         let length = Int64(data.length)
                         tracker.notifyProgress((length, length ,length))
@@ -142,7 +151,7 @@ public class DefaultDownloader: Downloader {
                         dispatch_sync(queue) {
                             if combinedTask.cancelled {
                                 tracker.notifyProgress(PTInvalidProgressInfo)
-                                tracker.notifyCompletion(.Failed(url: url, error: nil))
+                                tracker.notifyCompletion(.Failed(url: url, error: canncelledError(url)))
                             } else {
                                 let length = Int64(data.length)
                                 tracker.notifyProgress((length, length ,length))
@@ -169,7 +178,7 @@ public class DefaultDownloader: Downloader {
                                 })
                             } else {
                                 tracker.notifyProgress(PTInvalidProgressInfo)
-                                tracker.notifyCompletion(.Failed(url: url, error: nil))
+                                tracker.notifyCompletion(.Failed(url: url, error: canncelledError(url)))
                                 self?.removeTracker(task)
                             }
                         }
@@ -209,14 +218,14 @@ public class DefaultDownloader: Downloader {
 }
 
 // MARK: - DefaultTaskTracker
-final public class DefaultTracker: Tracker {
+public class DefaultTracker: Tracker {
     
     typealias DecoderCompletion = (decoder: (NSURL, NSData) -> DecodeResult<Any>, completion: Result<Any> -> Void)
     
-    public private(set) var progressInfo: ProgressInfo?
-    private var lock = OS_SPINLOCK_INIT
+    public internal(set) var progressInfo: ProgressInfo?
     
-    private var trackings: [TrackingToken: (progress: (ProgressInfo -> Void)?, decoderCompletion: DecoderCompletion?)] = [:]
+    var lock = OS_SPINLOCK_INIT
+    var trackings: [TrackingToken: (progress: (ProgressInfo -> Void)?, decoderCompletion: DecoderCompletion?)] = [:]
     
     // TODO: invalid progress?
     public func addTracking(progress progress: (ProgressInfo -> Void)) -> TrackingToken? {
@@ -255,7 +264,7 @@ final public class DefaultTracker: Tracker {
         }
     }
     
-    private func notifyProgress(progress: ProgressInfo) {
+    func notifyProgress(progress: ProgressInfo) {
         self.progressInfo = progress
         OSSpinLockLock(&lock)
         let progresses = trackings.flatMap{$1.progress}
@@ -263,7 +272,7 @@ final public class DefaultTracker: Tracker {
         progresses.forEach { $0(progress) }
     }
     
-    private func notifyCompletion(result: Result<NSData>) {
+    func notifyCompletion(result: Result<NSData>) {
         OSSpinLockLock(&lock)
         let decodeCompletions = trackings.flatMap{$1.decoderCompletion}
         OSSpinLockUnlock(&lock)
