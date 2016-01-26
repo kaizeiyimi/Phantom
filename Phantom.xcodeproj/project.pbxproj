@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F623439D1C57CD6B0016B531 /* Tracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F623439C1C57CD6B0016B531 /* Tracker.swift */; };
 		F693405F1C4CC24800F85117 /* Phantom.h in Headers */ = {isa = PBXBuildFile; fileRef = F693405E1C4CC24800F85117 /* Phantom.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		F693406A1C4CC27700F85117 /* Downloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F69340691C4CC27700F85117 /* Downloader.swift */; };
 		F693406C1C4CC2B600F85117 /* Connector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F693406B1C4CC2B600F85117 /* Connector.swift */; };
@@ -51,6 +52,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F623439C1C57CD6B0016B531 /* Tracker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Tracker.swift; sourceTree = "<group>"; };
 		F63D5C551C5238E10007048D /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = SOURCE_ROOT; };
 		F63D5C561C5238E10007048D /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = SOURCE_ROOT; };
 		F693405B1C4CC24800F85117 /* Phantom.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Phantom.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -126,6 +128,7 @@
 			isa = PBXGroup;
 			children = (
 				F69340691C4CC27700F85117 /* Downloader.swift */,
+				F623439C1C57CD6B0016B531 /* Tracker.swift */,
 				F693408A1C4DCF2700F85117 /* Cache.swift */,
 				F693406B1C4CC2B600F85117 /* Connector.swift */,
 				F693408C1C4E21B300F85117 /* UIKitExtension.swift */,
@@ -263,6 +266,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F623439D1C57CD6B0016B531 /* Tracker.swift in Sources */,
 				F69DD1BD1C5079C400884F67 /* Utils.swift in Sources */,
 				F693406C1C4CC2B600F85117 /* Connector.swift in Sources */,
 				F693408B1C4DCF2700F85117 /* Cache.swift in Sources */,

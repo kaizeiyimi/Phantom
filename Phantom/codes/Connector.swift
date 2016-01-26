@@ -30,17 +30,12 @@ final public class Connector {
             trackings.removeAll()
             OSSpinLockUnlock(&lock)
         }
-        
-        func allDecodeCompletions() -> [(decoder: (NSURL, NSData) -> DecodeResult<Any>, completion: Result<Any> -> Void)] {
-            OSSpinLockLock(&lock)
-            let decodeCompletions = trackings.flatMap({$1.decoderCompletion})
-            OSSpinLockUnlock(&lock)
-            return decodeCompletions
-        }
     }
     
     private weak var lastTask: Task?
     private var lastTracker: ConnectorTracker?
+    
+    private let connectorQueue = dispatch_queue_create("Phantom.Connector", DISPATCH_QUEUE_CONCURRENT)
     
     public var progressInfo: ProgressInfo? {
         return lastTracker?.progressInfo
@@ -50,7 +45,10 @@ final public class Connector {
     public var cancelSameURLTask = false
     public var queue = dispatch_get_main_queue()
     
-    public init() {}
+
+    public init(queue: dispatch_queue_t = dispatch_get_main_queue()) {
+        self.queue = queue
+    }
     
     deinit {
         cancelCurrentTask()
@@ -68,7 +66,7 @@ final public class Connector {
                         lastTracker.notifyProgress(PTInvalidProgressInfo)
                         lastTracker.removeAllTracking()
                         lastTracker.progressInfo = preProgress
-                        lastTracker.addTracking(progress: progress, decoder: decoder, completion: completion)
+                        lastTracker.addTracking(nil, progress: progress, decoder: decoder, completion: completion)
                         if let progressInfo = lastTracker.progressInfo {
                             lastTracker.notifyProgress(progressInfo)
                         }
@@ -80,13 +78,13 @@ final public class Connector {
             lastTracker = ConnectorTracker(url: url)
             lastTracker?.downloader = downloader
             lastTracker?.cache = cache
-            lastTracker?.addTracking(progress: progress, decoder: decoder, completion: completion)
+            lastTracker?.addTracking(nil, progress: progress, decoder: decoder, completion: completion)
             
             var currentTask: Task!
-            self.lastTask = downloader.download(url, cache: cache,
+            self.lastTask = downloader.download(url, cache: cache, queue: connectorQueue,
                 progress: {[queue, weak self] c, tr, te in
+                    self?.lastTracker?.progressInfo = (c, tr, te)
                     dispatch_async(queue) {
-                        self?.lastTracker?.progressInfo = (c, tr, te)
                         guard let task = currentTask where !task.cancelled else { return }
                         self?.lastTracker?.notifyProgress((c, tr, te))
                     }
@@ -95,31 +93,12 @@ final public class Connector {
                     return .Success(data: data)
                 },
                 completion: {[queue, weak self] result in
-                    guard let decodeCompletions = self?.lastTracker?.allDecodeCompletions() else { return }
-                    
-                    let decoded: [Result<Any>]
-                    switch result {
-                    case .Success(let url, let data):
-                        decoded = decodeCompletions.map {
-                            switch $0.decoder(url, data) {
-                            case .Success(let d):
-                                return .Success(url: url, data: d as Any)
-                            case .Failed(let error):
-                                return .Failed(url: url, error: error)
-                            }
-                        }
-                    case .Failed(let url, let error):
-                        decoded = [Result<Any>](count: decodeCompletions.count, repeatedValue: .Failed(url: url, error: error))
-                    }
-
-                    dispatch_async(queue) {[weak self] in
+                    dispatch_async(queue) {
+                        guard let task = currentTask where !task.cancelled else { return }
+                        self?.lastTracker?.notifyCompletion(result)
                         if self?.lastTask === currentTask {
                             self?.lastTracker = nil
                             self?.lastTask = nil
-                        }
-                        guard let task = currentTask where !task.cancelled else { return }
-                        zip(decodeCompletions, decoded).forEach{ info, value in
-                            info.completion(value)
                         }
                     }
                 })
@@ -138,11 +117,11 @@ final public class Connector {
     }
     
     func addTracking(progress progress: (ProgressInfo -> Void)) -> TrackingToken? {
-        return lastTracker?.addTracking(progress: progress)
+        return lastTracker?.addTracking(nil, progress: progress)
     }
     
     public func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void) -> TrackingToken? {
-        return lastTracker?.addTracking(progress: progress, decoder: decoder, completion: completion)
+        return lastTracker?.addTracking(nil, progress: progress, decoder: decoder, completion: completion)
     }
     
     public func removeTracking(token: TrackingToken?) {

@@ -26,27 +26,6 @@ public enum DecodeResult<T> {
     case Failed(error: ErrorType?)
 }
 
-// MARK: - Task Tracking
-final public class TrackingToken: Hashable {
-    public var hashValue: Int {
-        return "\(unsafeAddressOf(self))".hashValue
-    }
-}
-
-public func ==(lhs: TrackingToken, rhs: TrackingToken) -> Bool {
-    return lhs === rhs
-}
-
-public protocol Tracker: class {
-    var progressInfo: ProgressInfo? { get }
-    
-    func addTracking(progress progress: (ProgressInfo -> Void)) -> TrackingToken?
-    func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken?
-    
-    func removeTracking(token: TrackingToken?)
-}
-
-
 // Task
 public protocol Task: class {
     var cancelled: Bool { get }
@@ -56,16 +35,32 @@ public protocol Task: class {
 
 // MARK: downloader
 public protocol Downloader: class {
+    
     func download<T>(url: NSURL, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task
     func download<T>(url: NSURL, cache: DownloaderCache?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task
+    func download<T>(url: NSURL, queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task
     
-    func trackerForTask(task: Task) -> Tracker?
+    // must implement
+    func download<T>(url: NSURL, cache: DownloaderCache?, queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task
     
+    func progressInfoForTask(task: Task) -> ProgressInfo?
+    func addTracking(task: Task, queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)) -> TrackingToken?
+    func addTracking<T>(task: Task, queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken?
+    func removeTracking(task: Task, token: TrackingToken?)
 }
 
 public extension Downloader {
+    
     func download<T>(url: NSURL, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task {
-        return download(url, cache: nil, progress: progress, decoder: decoder, completion: completion)
+        return download(url, cache: nil, queue: nil, progress: progress, decoder: decoder, completion: completion)
+    }
+    
+    func download<T>(url: NSURL, cache: DownloaderCache?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task {
+        return download(url, cache: cache, queue: nil, progress: progress, decoder: decoder, completion: completion)
+    }
+    
+    func download<T>(url: NSURL, queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task {
+        return download(url, cache: nil, queue: queue, progress: progress, decoder: decoder, completion: completion)
     }
 }
 
@@ -83,16 +78,6 @@ extension NSURLSessionTask: Task {
     }
 }
 
-// MARK: -
-
-func canncelledError(url: NSURL) -> NSError {
-    return NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled, userInfo: [
-        NSURLErrorFailingURLErrorKey: url,
-        NSURLErrorFailingURLStringErrorKey: url.absoluteString,
-        NSLocalizedDescriptionKey: "cancelled"
-        ])
-}
-
 // MARK: - sharedDownloader
 public var sharedDownloader: Downloader = {
     return DefaultDownloader()
@@ -101,16 +86,16 @@ public var sharedDownloader: Downloader = {
 // MARK: - DefaultDownloader
 public class DefaultDownloader: Downloader {
     
-    private let queue = dispatch_queue_create("Phantom.defaultDownloader", DISPATCH_QUEUE_CONCURRENT)
+    private let downloaderQueue = dispatch_queue_create("Phantom.defaultDownloader", DISPATCH_QUEUE_CONCURRENT)
     private let operationQueue = NSOperationQueue()
     lazy private var session: NSURLSession = {
         let session = NSURLSession(configuration: .defaultSessionConfiguration(),
-            delegate: URLSessionDelegate(queue: self.queue),
+            delegate: URLSessionDelegate(queue: self.downloaderQueue),
             delegateQueue: self.operationQueue)
         return session
     }()
     
-    private var tasks: [String: Tracker] = [:]
+    private var tasks: [String: DefaultTracker] = [:]
     private var lock = OS_SPINLOCK_INIT
     
     private var taskGenerator: TaskGenerator?
@@ -128,17 +113,17 @@ public class DefaultDownloader: Downloader {
         session.invalidateAndCancel()
     }
     
-    public func download<T>(url: NSURL, cache: DownloaderCache?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task {
+    public func download<T>(url: NSURL, cache: DownloaderCache?, queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task {
         var task: Task!
         let tracker = DefaultTracker()
         var taskGenerator: TaskGenerator! = self.taskGenerator  // swift compiler bug. cannot use ?: or ??
         if taskGenerator == nil {
             taskGenerator = taskForURL
         }
-        dispatch_sync(queue) { [queue, operationQueue, weak self] in
+        dispatch_sync(downloaderQueue) { [downloaderQueue, operationQueue, weak self] in
             if let data = cache?.cachedDataFromMemory(url) {
                 task = InMemoryTask()
-                dispatch_async(queue) {
+                dispatch_async(downloaderQueue) {
                     if task.cancelled {
                         tracker.notifyProgress(PTInvalidProgressInfo)
                         tracker.notifyCompletion(.Failed(url: url, error: canncelledError(url)))
@@ -153,7 +138,7 @@ public class DefaultDownloader: Downloader {
                 let combinedTask = CombinedDownloadTask()
                 operationQueue.addOperationWithBlock { () -> Void in
                     if let diskURL = cache?.cachedDiskURLForURL(url), data = NSData(contentsOfURL: diskURL) {
-                        dispatch_sync(queue) {
+                        dispatch_sync(downloaderQueue) {
                             if combinedTask.cancelled {
                                 tracker.notifyProgress(PTInvalidProgressInfo)
                                 tracker.notifyCompletion(.Failed(url: url, error: canncelledError(url)))
@@ -165,7 +150,7 @@ public class DefaultDownloader: Downloader {
                             self?.removeTracker(task)
                         }
                     } else {
-                        dispatch_sync(queue) {
+                        dispatch_sync(downloaderQueue) {
                             if !combinedTask.cancelled {
                                 combinedTask.sessionTask = taskGenerator(url: url,
                                     progress: { c, tr, te in
@@ -193,14 +178,30 @@ public class DefaultDownloader: Downloader {
             }
         }
         
-        tracker.addTracking(progress: progress, decoder: decoder, completion: completion)
+        tracker.addTracking(queue, progress: progress, decoder: decoder, completion: completion)
         OSSpinLockLock(&lock)
         self.tasks["\(unsafeAddressOf(task))"] = tracker
         OSSpinLockUnlock(&lock)
         return task
     }
     
-    public func trackerForTask(task: Task) -> Tracker? {
+    public func progressInfoForTask(task: Task) -> ProgressInfo? {
+        return trackerForTask(task)?.progressInfo
+    }
+    
+    public func addTracking(task: Task, queue: dispatch_queue_t? = nil, progress: (ProgressInfo -> Void)) -> TrackingToken? {
+        return trackerForTask(task)?.addTracking(queue, progress: progress)
+    }
+    
+    public func addTracking<T>(task: Task, queue: dispatch_queue_t? = nil, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken? {
+        return trackerForTask(task)?.addTracking(queue, progress: progress, decoder: decoder, completion: completion)
+    }
+    
+    public func removeTracking(task: Task, token: TrackingToken?) {
+        trackerForTask(task)?.removeTracking(token)
+    }
+    
+    private func trackerForTask(task: Task) -> DefaultTracker? {
         OSSpinLockLock(&lock)
         let tracker = tasks["\(unsafeAddressOf(task))"]
         OSSpinLockUnlock(&lock)
@@ -222,86 +223,6 @@ public class DefaultDownloader: Downloader {
     
 }
 
-// MARK: - DefaultTaskTracker
-public class DefaultTracker: Tracker {
-    
-    typealias DecoderCompletion = (decoder: (NSURL, NSData) -> DecodeResult<Any>, completion: Result<Any> -> Void)
-    
-    public internal(set) var progressInfo: ProgressInfo?
-    
-    var lock = OS_SPINLOCK_INIT
-    var trackings: [TrackingToken: (progress: (ProgressInfo -> Void)?, decoderCompletion: DecoderCompletion?)] = [:]
-    
-    // TODO: invalid progress?
-    public func addTracking(progress progress: (ProgressInfo -> Void)) -> TrackingToken? {
-        let token = TrackingToken()
-        OSSpinLockLock(&lock)
-        trackings[token] = (progress: progress, decoderCompletion: nil)
-        OSSpinLockUnlock(&lock)
-        return token
-    }
-    
-    public func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken? {
-        let token = TrackingToken()
-        let wrapDecoder = { (url: NSURL, data: NSData) -> DecodeResult<Any> in
-            switch decoder(url, data) {
-            case .Success(let result): return .Success(data: result as Any)
-            case .Failed(let error): return .Failed(error: error)
-            }
-        }
-        let wrapCompletion = { (decoded: Result<Any>) in
-            switch decoded {
-            case .Success(let url, let result): completion(.Success(url: url, data: result as! T))
-            case .Failed(let url, let error): completion(.Failed(url: url, error: error))
-            }
-        }
-        OSSpinLockLock(&lock)
-        trackings[token] = (progress, (decoder: wrapDecoder, completion: wrapCompletion))
-        OSSpinLockUnlock(&lock)
-        return token
-    }
-    
-    public func removeTracking(token: TrackingToken?) {
-        if let token = token {
-            OSSpinLockLock(&lock)
-            trackings.removeValueForKey(token)
-            OSSpinLockUnlock(&lock)
-        }
-    }
-    
-    func notifyProgress(progress: ProgressInfo) {
-        self.progressInfo = progress
-        OSSpinLockLock(&lock)
-        let progresses = trackings.flatMap{$1.progress}
-        OSSpinLockUnlock(&lock)
-        progresses.forEach { $0(progress) }
-    }
-    
-    func notifyCompletion(result: Result<NSData>) {
-        OSSpinLockLock(&lock)
-        let decodeCompletions = trackings.flatMap{$1.decoderCompletion}
-        OSSpinLockUnlock(&lock)
-        
-        let decoded: [Result<Any>]
-        switch result {
-        case .Success(let url, let data):
-            decoded = decodeCompletions.map {
-                switch $0.decoder(url, data) {
-                case .Success(let d):
-                    return .Success(url: url, data: d as Any)
-                case .Failed(let error):
-                    return .Failed(url: url, error: error)
-                }
-            }
-        case .Failed(let url, let error):
-            decoded = [Result<Any>](count: decodeCompletions.count, repeatedValue: .Failed(url: url, error: error))
-        }
-        
-        zip(decodeCompletions, decoded).forEach{ decodeCompletion, data in
-            decodeCompletion.completion(data)
-        }
-    }
-}
 
 // MARK: -
 
@@ -375,4 +296,13 @@ final private class InMemoryTask: Task {
     private func cancel() {
         cancelled = true
     }
+}
+
+// MARK: - generate cancel error for url
+func canncelledError(url: NSURL) -> NSError {
+    return NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled, userInfo: [
+        NSURLErrorFailingURLErrorKey: url,
+        NSURLErrorFailingURLStringErrorKey: url.absoluteString,
+        NSLocalizedDescriptionKey: "cancelled"
+        ])
 }
