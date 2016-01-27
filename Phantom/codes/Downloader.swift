@@ -8,7 +8,7 @@
 
 import Foundation
 
-/// -1 means progress is cancelled.
+/// -1 means progress is invalid now. may be triggered by failed or cancelled.
 public let PTInvalidDownloadProgressMetric: Int64 = -1
 public let PTInvalidProgressInfo = (PTInvalidDownloadProgressMetric, PTInvalidDownloadProgressMetric, PTInvalidDownloadProgressMetric)
 
@@ -16,17 +16,20 @@ public typealias ProgressInfo = (currentSize: Int64, totalRecievedSize: Int64, t
 
 public typealias TaskGenerator = (url: NSURL, progress: (ProgressInfo -> Void)?, completion: Result<NSData> -> Void) -> Task
 
+/// Common Result Enum.
 public enum Result<T> {
+    typealias DataType = T
     case Success(url: NSURL, data: T)
     case Failed(url: NSURL, error: ErrorType?)
 }
 
+/// Decode Result Enum. used for decoder's result.
 public enum DecodeResult<T> {
     case Success(data: T)
     case Failed(error: ErrorType?)
 }
 
-// Task
+/// Task.
 public protocol Task: class {
     var cancelled: Bool { get }
     func cancel()
@@ -34,19 +37,22 @@ public protocol Task: class {
 
 
 // MARK: downloader
+
+/**
+a `Downloader` provides the ability to download data.
+
+`url`, `cache` are the most important things. `url` defines which resource to download and `cache` controls which cache should be used for the task.
+
+`queue` is the callback queue for `progress` and `completion`. if set to `nil`, will use downloader's default setting.
+`progress` is a callback for the downloading task's progress. will be called in the `queue`. if task is cancelled or failed, will be called with `PTInvalidProgressInfo`.
+`decoder` defines how to decode the `NSData`.
+`completion` will be called with decoded content.
+
+@See **Tracker** for more detail.
+
+*/
 public protocol Downloader: class {
-    
-    func download<T>(url: NSURL, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task
-    func download<T>(url: NSURL, cache: DownloaderCache?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task
-    func download<T>(url: NSURL, queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task
-    
-    // must implement
     func download<T>(url: NSURL, cache: DownloaderCache?, queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task
-    
-    func progressInfoForTask(task: Task) -> ProgressInfo?
-    func addTracking(task: Task, queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)) -> TrackingToken?
-    func addTracking<T>(task: Task, queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken?
-    func removeTracking(task: Task, token: TrackingToken?)
 }
 
 public extension Downloader {
@@ -79,25 +85,30 @@ extension NSURLSessionTask: Task {
 }
 
 // MARK: - sharedDownloader
+
+/// sharedDownloader. you can set your own too.
 public var sharedDownloader: Downloader = {
     return DefaultDownloader()
 }()
 
 // MARK: - DefaultDownloader
+
+/**
+a default implementation. downloads using NSURLSession's download task.
+
+you can set `URLRequestGenerator` to modify `URLRequest` or set `taskGenerator` to provide custom task.
+*/
 public class DefaultDownloader: Downloader {
     
-    private let downloaderQueue = dispatch_queue_create("Phantom.defaultDownloader", DISPATCH_QUEUE_CONCURRENT)
     private let operationQueue = NSOperationQueue()
     lazy private var session: NSURLSession = {
         let session = NSURLSession(configuration: .defaultSessionConfiguration(),
-            delegate: URLSessionDelegate(queue: self.downloaderQueue),
+            delegate: URLSessionDelegate(operationQueue: self.operationQueue),
             delegateQueue: self.operationQueue)
         return session
     }()
     
-    private var tasks: [String: DefaultTracker] = [:]
-    private var lock = OS_SPINLOCK_INIT
-    
+    /// if you choose to use `DefaultDownloader`'s logic, you can set this to generator your own task ranther than default.
     private var taskGenerator: TaskGenerator?
     
     /// if you use default `TaskGenerator`, you can set `URLRequestGenerator` to generate `NSURLRequest` with custom config.
@@ -111,109 +122,87 @@ public class DefaultDownloader: Downloader {
     
     deinit {
         session.invalidateAndCancel()
+        operationQueue.cancelAllOperations()
     }
     
+    /**
+     this implementation will always callback async even hit cache.
+     */
     public func download<T>(url: NSURL, cache: DownloaderCache?, queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> Task {
         var task: Task!
-        let tracker = DefaultTracker()
         var taskGenerator: TaskGenerator! = self.taskGenerator  // swift compiler bug. cannot use ?: or ??
         if taskGenerator == nil {
             taskGenerator = taskForURL
         }
-        dispatch_sync(downloaderQueue) { [downloaderQueue, operationQueue, weak self] in
-            if let data = cache?.cachedDataFromMemory(url) {
-                task = InMemoryTask()
-                dispatch_async(downloaderQueue) {
-                    if task.cancelled {
-                        tracker.notifyProgress(PTInvalidProgressInfo)
-                        tracker.notifyCompletion(.Failed(url: url, error: canncelledError(url)))
-                    } else {
-                        let length = Int64(data.length)
-                        tracker.notifyProgress((length, length ,length))
-                        tracker.notifyCompletion(.Success(url: url, data: data))
-                    }
-                    self?.removeTracker(task)
-                }
-            } else {
-                let combinedTask = CombinedDownloadTask()
-                operationQueue.addOperationWithBlock { () -> Void in
-                    if let diskURL = cache?.cachedDiskURLForURL(url), data = NSData(contentsOfURL: diskURL) {
-                        dispatch_sync(downloaderQueue) {
-                            if combinedTask.cancelled {
-                                tracker.notifyProgress(PTInvalidProgressInfo)
-                                tracker.notifyCompletion(.Failed(url: url, error: canncelledError(url)))
-                            } else {
-                                let length = Int64(data.length)
-                                tracker.notifyProgress((length, length ,length))
-                                tracker.notifyCompletion(.Success(url: url, data: data))
-                            }
-                            self?.removeTracker(task)
-                        }
-                    } else {
-                        dispatch_sync(downloaderQueue) {
-                            if !combinedTask.cancelled {
-                                combinedTask.sessionTask = taskGenerator(url: url,
-                                    progress: { c, tr, te in
-                                        tracker.notifyProgress((c, tr, te))
-                                    },
-                                    completion: { result in
-                                        let _ = combinedTask // just keep task's live
-                                        if case .Success(let url, let data) = result {
-                                            cache?.cache(url, data: data)
-                                        } else {
-                                            tracker.notifyProgress(PTInvalidProgressInfo)
-                                        }
-                                        tracker.notifyCompletion(result)
-                                        self?.removeTracker(task)
-                                })
-                            } else {
-                                tracker.notifyProgress(PTInvalidProgressInfo)
-                                tracker.notifyCompletion(.Failed(url: url, error: canncelledError(url)))
-                                self?.removeTracker(task)
-                            }
-                        }
-                    }
-                }
-                task = combinedTask
-            }
-        }
         
-        tracker.addTracking(queue, progress: progress, decoder: decoder, completion: completion)
-        OSSpinLockLock(&lock)
-        self.tasks["\(unsafeAddressOf(task))"] = tracker
-        OSSpinLockUnlock(&lock)
+        // try load from cache
+        if let data = cache?.cachedDataFromMemory(url) {
+            task = InMemoryTask()
+            operationQueue.addOperationWithBlock {
+                if !task.cancelled {
+                    let length = Int64(data.length)
+                    let decoded = decode(.Success(url: url, data: data), decoder: decoder)
+                    if !task.cancelled {
+                        execute(queue) { progress?((length, length, length)) }
+                        execute(queue) { completion(decoded) }
+                        return
+                    }
+                }
+                execute(queue) { progress?(PTInvalidProgressInfo) }
+                execute(queue) { completion(.Failed(url: url, error: canncelledError(url))) }
+            }
+        } else {    // load from disk first if failed load from network.
+            let combinedTask = CombinedDownloadTask()
+            operationQueue.addOperationWithBlock {
+                if let data = cache?.cachedDataFromDisk(url) {
+                    if !task.cancelled {
+                        let length = Int64(data.length)
+                        let decoded = decode(.Success(url: url, data: data), decoder: decoder)
+                        if !task.cancelled {
+                            execute(queue) { progress?((length, length, length)) }
+                            execute(queue) { completion(decoded) }
+                            return
+                        }
+                    }
+                    execute(queue) { progress?(PTInvalidProgressInfo) }
+                    execute(queue) { completion(.Failed(url: url, error: canncelledError(url))) }
+                } else {
+                    if !task.cancelled {
+                        combinedTask.sessionTask = taskGenerator(url: url,
+                            progress: { c, tr, te in
+                                execute(queue) { progress?((c, tr, te)) }
+                            },
+                            completion: { result in
+                                let _ = combinedTask // just keep task's live
+                                switch result {
+                                case .Success(let url, let data):
+                                    cache?.cache(url, data: data)
+                                    let decoded = decode(.Success(url: url, data: data), decoder: decoder)
+                                    if !task.cancelled {
+                                        execute(queue) { completion(decoded) }
+                                    } else {
+                                        execute(queue) { progress?(PTInvalidProgressInfo) }
+                                        execute(queue) { completion(.Failed(url: url, error: canncelledError(url))) }
+                                    }
+                                case .Failed(let url, let error):
+                                    execute(queue) { progress?(PTInvalidProgressInfo) }
+                                    execute(queue) { completion(.Failed(url: url, error: error)) }
+                                }
+                        })
+                    } else {
+                        execute(queue) { progress?(PTInvalidProgressInfo) }
+                        execute(queue) { completion(.Failed(url: url, error: canncelledError(url))) }
+                    }
+                }
+            }
+            
+            task = combinedTask
+        }
+
         return task
     }
     
-    public func progressInfoForTask(task: Task) -> ProgressInfo? {
-        return trackerForTask(task)?.progressInfo
-    }
-    
-    public func addTracking(task: Task, queue: dispatch_queue_t? = nil, progress: (ProgressInfo -> Void)) -> TrackingToken? {
-        return trackerForTask(task)?.addTracking(queue, progress: progress)
-    }
-    
-    public func addTracking<T>(task: Task, queue: dispatch_queue_t? = nil, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken? {
-        return trackerForTask(task)?.addTracking(queue, progress: progress, decoder: decoder, completion: completion)
-    }
-    
-    public func removeTracking(task: Task, token: TrackingToken?) {
-        trackerForTask(task)?.removeTracking(token)
-    }
-    
-    private func trackerForTask(task: Task) -> DefaultTracker? {
-        OSSpinLockLock(&lock)
-        let tracker = tasks["\(unsafeAddressOf(task))"]
-        OSSpinLockUnlock(&lock)
-        return tracker
-    }
-    
-    private func removeTracker(task: Task) {
-        OSSpinLockLock(&lock)
-        tasks.removeValueForKey("\(unsafeAddressOf(task))")
-        OSSpinLockUnlock(&lock)
-    }
-    
+    /// default taskGenerator. set `taskGenerator` to customise.
     private func taskForURL(url: NSURL, progress: (ProgressInfo -> Void)?, completion: Result<NSData> -> Void) -> Task {
         let sessionTask = session.downloadTaskWithRequest(URLRequestGenerator(url))
         sessionTask.taskDelegate = TaskDelegate(url: url, progress: progress, completion: completion)
@@ -224,32 +213,37 @@ public class DefaultDownloader: Downloader {
 }
 
 
-// MARK: -
+// MARK: - Helpers
 
 final private class URLSessionDelegate: NSObject, NSURLSessionDownloadDelegate {
-    private var queue: dispatch_queue_t
-    init(queue: dispatch_queue_t) {
-        self.queue = queue
+    private var operationQueue: NSOperationQueue
+    init(operationQueue: NSOperationQueue) {
+        self.operationQueue = operationQueue
     }
     
     @objc private func URLSession(session: NSURLSession, downloadTask: NSURLSessionDownloadTask, didFinishDownloadingToURL location: NSURL) {
         guard let data = NSData(contentsOfURL: location) else { return }
-        dispatch_sync(queue) {
-            downloadTask.taskDelegate?.didFinishDownloading(data)
-            downloadTask.taskDelegate = nil
+        operationQueue.addOperationWithBlock {
+            if let taskDelegate = downloadTask.taskDelegate {
+                downloadTask.taskDelegate = nil
+                taskDelegate.didFinishDownloading(data)
+            }
         }
     }
     
     @objc private func URLSession(session: NSURLSession, downloadTask: NSURLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        dispatch_sync(queue) {
+        operationQueue.addOperationWithBlock {
             downloadTask.taskDelegate?.didWriteData(bytesWritten: bytesWritten, totalBytesWritten: totalBytesWritten, totalBytesExpectedToWrite: totalBytesExpectedToWrite)
         }
     }
     
     @objc private func URLSession(session: NSURLSession, task: NSURLSessionTask, didCompleteWithError error: NSError?) {
-        dispatch_sync(queue) {
-            task.taskDelegate?.didCompleteWithError(error)
-            task.taskDelegate = nil
+        operationQueue.addOperationWithBlock {
+            if let taskDelegate = task.taskDelegate {
+                task.taskDelegate = nil
+                taskDelegate.didCompleteWithError(error)
+            }
+            
         }
     }
     
@@ -296,13 +290,4 @@ final private class InMemoryTask: Task {
     private func cancel() {
         cancelled = true
     }
-}
-
-// MARK: - generate cancel error for url
-func canncelledError(url: NSURL) -> NSError {
-    return NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled, userInfo: [
-        NSURLErrorFailingURLErrorKey: url,
-        NSURLErrorFailingURLStringErrorKey: url.absoluteString,
-        NSLocalizedDescriptionKey: "cancelled"
-        ])
 }

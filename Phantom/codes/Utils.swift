@@ -9,6 +9,37 @@
 import UIKit
 
 
+func canncelledError(url: NSURL) -> NSError {
+    return NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled, userInfo: [
+        NSURLErrorFailingURLErrorKey: url,
+        NSURLErrorFailingURLStringErrorKey: url.absoluteString,
+        NSLocalizedDescriptionKey: "cancelled"
+        ])
+}
+
+func decode<P>(result: Result<NSData>, decoder: (NSURL, NSData) -> DecodeResult<P>) -> Result<P> {
+    switch result {
+    case .Success(let url, let data):
+        switch decoder(url, data) {
+        case .Success(let d):
+            return .Success(url: url, data: d)
+        case .Failed(let error):
+            return .Failed(url: url, error: error)
+        }
+    case .Failed(let url, let error):
+        return .Failed(url: url, error: error)
+    }
+}
+
+func execute(queue: dispatch_queue_t?, action: () -> Void) {
+    if let queue = queue {
+        dispatch_async(queue, action)
+    } else {
+        action()
+    }
+}
+
+
 /// stolen from SDWebImage's decoder. just change OC to swift.
 public func decodeCGImage(image: CGImage?) -> CGImage? {
     guard let image = image else { return nil }

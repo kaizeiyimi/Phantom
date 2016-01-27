@@ -20,8 +20,17 @@ public func ==(lhs: TrackingToken, rhs: TrackingToken) -> Bool {
     return lhs === rhs
 }
 
-// MARK: - DefaultTaskTracker. Not public
-class DefaultTracker {
+//public protocol Tracker {
+//    var progressInfo: ProgressInfo? { get }
+//    var result: Result<NSData>? { get }
+//    
+//    func addTracking(queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)) -> TrackingToken?
+//    func addTracking<T>(queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken?
+//    func removeTracking(token: TrackingToken?)
+//}
+
+// MARK: - DefaultTaskTracker.
+class Tracker {
     
     struct TrackingItem {
         let queue: dispatch_queue_t?
@@ -30,20 +39,18 @@ class DefaultTracker {
     }
     
     var progressInfo: ProgressInfo?
+    var result: Result<NSData>?
     
     var lock = OS_SPINLOCK_INIT
     var trackings: [TrackingToken: TrackingItem] = [:]
     
+    init(){}
+    
     func addTracking(queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)) -> TrackingToken? {
-        let token = TrackingToken()
-        OSSpinLockLock(&lock)
-        trackings[token] = TrackingItem(queue: queue, progress: progress, decoderCompletion: nil)
-        OSSpinLockUnlock(&lock)
-        return token
+        return addTracking(TrackingItem(queue: queue, progress: progress, decoderCompletion: nil))
     }
     
     func addTracking<T>(queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken? {
-        let token = TrackingToken()
         let wrapDecoder = { (url: NSURL, data: NSData) -> DecodeResult<Any> in
             switch decoder(url, data) {
             case .Success(let result): return .Success(data: result as Any)
@@ -56,10 +63,7 @@ class DefaultTracker {
             case .Failed(let url, let error): completion(.Failed(url: url, error: error))
             }
         }
-        OSSpinLockLock(&lock)
-        trackings[token] = TrackingItem(queue: queue, progress: progress, decoderCompletion: (wrapDecoder, wrapCompletion))
-        OSSpinLockUnlock(&lock)
-        return token
+        return addTracking(TrackingItem(queue: queue, progress: progress, decoderCompletion: (wrapDecoder, wrapCompletion)))
     }
     
     func removeTracking(token: TrackingToken?) {
@@ -71,45 +75,57 @@ class DefaultTracker {
     }
     
     func notifyProgress(progressInfo: ProgressInfo) {
-        self.progressInfo = progressInfo
         OSSpinLockLock(&lock)
-        let progresses = trackings.map { ($1.queue, $1.progress) }
+        self.progressInfo = progressInfo
+        let items = trackings.values
         OSSpinLockUnlock(&lock)
-        progresses.forEach { queue, progress in
-            guard let progress = progress else { return }
-            if let queue = queue {
-                dispatch_async(queue){progress(progressInfo)}
-            } else {
-                progress(progressInfo)
-            }
-        }
+        items.forEach{ notifyProgrss($0, progressInfo: progressInfo) }
     }
     
     func notifyCompletion(result: Result<NSData>) {
         OSSpinLockLock(&lock)
-        let decodeCompletions = trackings.flatMap{($1.queue, $1.decoderCompletion)}
+        self.result = result
+        let items = trackings.values
+        OSSpinLockUnlock(&lock)
+        items.forEach{ notifyCompletion($0, result: result) }
+    }
+    
+    private func addTracking(item: TrackingItem) -> TrackingToken? {
+        OSSpinLockLock(&lock)
+        let token = TrackingToken()
+        trackings[token] = item
+        let progressInfo = self.progressInfo
+        let result = self.result
         OSSpinLockUnlock(&lock)
         
-        decodeCompletions.forEach { queue, handler in
-            guard let handler = handler else { return }
-            let decoded: Result<Any>
-            switch result {
-            case .Success(let url, let data):
-                switch handler.decoder(url, data) {
-                case .Success(let d):
-                    decoded = .Success(url: url, data: d as Any)
-                case .Failed(let error):
-                    decoded = .Failed(url: url, error: error)
-                }
-            case .Failed(let url, let error):
-                decoded = .Failed(url: url, error: error)
+        if let progressInfo = progressInfo {
+            notifyProgrss(item, progressInfo: progressInfo)
+        }
+        if let result = result {
+            notifyCompletion(item, result: result)
+        }
+
+        return token
+    }
+    
+    func notifyProgrss(item: TrackingItem, progressInfo: ProgressInfo) {
+        guard let progress = item.progress else { return }
+        if let queue = item.queue {
+            dispatch_async(queue){progress(progressInfo)}
+        } else {
+            progress(progressInfo)
+        }
+    }
+    
+    func notifyCompletion(item: TrackingItem, result: Result<NSData>) {
+        guard let decoderCompletion = item.decoderCompletion else { return }
+        
+        if let queue = item.queue {
+            dispatch_async(queue){
+                decoderCompletion.completion(decode(result, decoder: decoderCompletion.decoder))
             }
-            
-            if let queue = queue {
-                dispatch_async(queue){handler.completion(decoded)}
-            } else {
-                handler.completion(decoded)
-            }
+        } else {
+            decoderCompletion.completion(decode(result, decoder: decoderCompletion.decoder))
         }
     }
 }

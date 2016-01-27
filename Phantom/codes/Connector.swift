@@ -14,44 +14,12 @@ import Foundation
  2. all API calls should be in the `queue` which is default to main queue.
 */
 final public class Connector {
-    
-    final private class ConnectorTracker: DefaultTracker {
-        var url: NSURL
 
-        weak var downloader: Downloader?
-        weak var cache: DownloaderCache?
-        
-        init(url: NSURL) {
-            self.url = url
-        }
-        
-        func removeAllTracking() {
-            OSSpinLockLock(&lock)
-            trackings.removeAll()
-            OSSpinLockUnlock(&lock)
-        }
-        
-        func allTrackingItems() -> [TrackingItem] {
-            OSSpinLockLock(&lock)
-            let items = trackings.map{$1}
-            OSSpinLockUnlock(&lock)
-            return items
-        }
-    }
-    
-    private weak var lastTask: Task?
-    private var lastTracker: ConnectorTracker?
-    
-    private let connectorQueue = dispatch_queue_create("Phantom.Connector", DISPATCH_QUEUE_CONCURRENT)
-    
-    public var progressInfo: ProgressInfo? {
-        return lastTracker?.progressInfo
-    }
+    private var tracker: ConnectorTracker?
     
     /// default is *false*. two task are treated same only if **URL** is same, **downloader** is same and **cache** is nil or same.
     public var cancelSameURLTask = false
-    public var queue = dispatch_get_main_queue()
-    
+    private var queue = dispatch_get_main_queue()
 
     public init(queue: dispatch_queue_t = dispatch_get_main_queue()) {
         self.queue = queue
@@ -65,96 +33,99 @@ final public class Connector {
         progress: (ProgressInfo -> Void)? = nil,
         decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void) {
             
-            if let lastTracker = self.lastTracker
-                where lastTracker.url == url && lastTracker.downloader === downloader
-                    && (cache == nil || lastTracker.cache === cache)
+            let wrapDecoder = { (url: NSURL, data: NSData) -> DecodeResult<Any> in
+                switch decoder(url, data) {
+                case .Success(let result): return .Success(data: result as Any)
+                case .Failed(let error): return .Failed(error: error)
+                }
+            }
+            
+            let wrapCompletion = { (decoded: Result<Any>) in
+                switch decoded {
+                case .Success(let url, let result): completion(.Success(url: url, data: result as! T))
+                case .Failed(let url, let error): completion(.Failed(url: url, error: error))
+                }
+            }
+            
+            // judge cancel
+            if let tracker = self.tracker
+                where tracker.url == url && tracker.downloader === downloader
+                    && (cache == nil || tracker.cache === cache)
                     && !cancelSameURLTask {
-                        let preProgress = lastTracker.progressInfo
-                        lastTracker.notifyProgress(PTInvalidProgressInfo)
-                        lastTracker.removeAllTracking()
-                        lastTracker.progressInfo = preProgress
-                        lastTracker.addTracking(nil, progress: progress, decoder: decoder, completion: completion)
-                        if let progressInfo = lastTracker.progressInfo {
-                            lastTracker.notifyProgress(progressInfo)
+                        tracker.progress?(PTInvalidProgressInfo)
+                        tracker.progress = progress
+                        tracker.decoder = wrapDecoder
+                        tracker.completion = wrapCompletion
+                        if let progressInfo = tracker.progressInfo {
+                            progress?(progressInfo)
                         }
                         return
             }
             
             cancelCurrentTask()
             
-            lastTracker = ConnectorTracker(url: url)
-            lastTracker?.downloader = downloader
-            lastTracker?.cache = cache
-            lastTracker?.addTracking(nil, progress: progress, decoder: decoder, completion: completion)
-            
+            var tracker: ConnectorTracker!
             var currentTask: Task!
-            self.lastTask = downloader.download(url, cache: cache, queue: connectorQueue,
-                progress: {[queue, weak self] c, tr, te in
-                    self?.lastTracker?.progressInfo = (c, tr, te)
-                    dispatch_async(queue) {
-                        guard let task = currentTask where !task.cancelled else { return }
-                        self?.lastTracker?.notifyProgress((c, tr, te))
-                    }
+            currentTask = downloader.download(url, cache: cache, queue: queue,
+                progress: { c, tr, te in
+                    guard let task = currentTask where !task.cancelled else { return }
+                    tracker.progressInfo = (c, tr, te)
+                    tracker.progress?((c, tr, te))
                 },
-                decoder: { _, data in
-                    return .Success(data: data)
+                decoder: { url, data in
+                    return tracker.decoder(url, data)
                 },
-                completion: {[queue, weak self] result in
-                    guard let trackingItems = self?.lastTracker?.allTrackingItems().filter({$0.decoderCompletion != nil}) else { return }
-                    
-                    let decodedValues = trackingItems.map { item -> Result<Any> in
-                        switch result {
-                        case .Success(let url, let data):
-                            switch item.decoderCompletion!.decoder(url, data) {
-                            case .Success(let d):
-                                return .Success(url: url, data: d as Any)
-                            case .Failed(let error):
-                                return .Failed(url: url, error: error)
-                            }
-                        case .Failed(let url, let error):
-                            return .Failed(url: url, error: error)
-                        }
+                completion: {[weak self] result in
+                    guard let task = currentTask where !task.cancelled else { return }
+                    if self?.tracker === tracker {
+                        self?.tracker = nil
                     }
-                    
-                    dispatch_async(queue) {
-                        guard let task = currentTask where !task.cancelled else { return }
-                        zip(trackingItems, decodedValues).forEach { $0.decoderCompletion!.completion($1) }
-                        if self?.lastTask === currentTask {
-                            self?.lastTracker = nil
-                            self?.lastTask = nil
-                        }
-                    }
+                    tracker.completion(result)
                 })
             
-            currentTask = self.lastTask
+            tracker = ConnectorTracker(task: currentTask, url: url, progress: progress, decoder: wrapDecoder, completion: wrapCompletion)
+            tracker.downloader = downloader
+            tracker.cache = cache
+            self.tracker = tracker
     }
     
     public func cancelCurrentTask() {
-        lastTask?.cancel()
-        if let tracker = lastTracker {
-            tracker.notifyProgress(PTInvalidProgressInfo)
-            tracker.notifyCompletion(Result<NSData>.Failed(url: tracker.url, error: canncelledError(tracker.url)))
-            lastTracker = nil
+        tracker?.task.cancel()
+        if let tracker = self.tracker {
+            tracker.progress?(PTInvalidProgressInfo)
+            tracker.completion(.Failed(url: tracker.url, error: canncelledError(tracker.url)))
         }
-        lastTask = nil
-    }
-    
-    func addTracking(progress progress: (ProgressInfo -> Void)) -> TrackingToken? {
-        return lastTracker?.addTracking(nil, progress: progress)
-    }
-    
-    public func addTracking<T>(progress progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void) -> TrackingToken? {
-        return lastTracker?.addTracking(nil, progress: progress, decoder: decoder, completion: completion)
-    }
-    
-    public func removeTracking(token: TrackingToken?) {
-        lastTracker?.removeTracking(token)
+        tracker = nil
     }
 
 }
 
 
-extension NSObject {
+final private class ConnectorTracker {
+    
+    var url: NSURL
+    var task: Task
+    var progressInfo: ProgressInfo?
+    
+    weak var downloader: Downloader?
+    weak var cache: DownloaderCache?
+    
+    var progress: (ProgressInfo -> Void)?
+    var decoder: (NSURL, NSData) -> DecodeResult<Any>
+    var completion: Result<Any> -> Void
+    
+    init(task: Task, url: NSURL, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<Any>, completion: Result<Any> -> Void) {
+        self.task = task
+        self.url = url
+        self.progress = progress
+        self.decoder = decoder
+        self.completion = completion
+    }
+    
+}
+
+
+extension UIImageView {
     
     private static var kConnectorKey = "kaizei.yimi.phantom.connectorKey"
     
