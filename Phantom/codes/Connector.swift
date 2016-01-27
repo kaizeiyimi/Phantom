@@ -11,7 +11,7 @@ import Foundation
 
 /**
  1. Connector hold only one task. It will cancel last task if new task is about to begin.
- 2. all API calls should be in the 'queue' which is default to main queue.
+ 2. all API calls should be in the `queue` which is default to main queue.
 */
 final public class Connector {
     
@@ -29,6 +29,13 @@ final public class Connector {
             OSSpinLockLock(&lock)
             trackings.removeAll()
             OSSpinLockUnlock(&lock)
+        }
+        
+        func allTrackingItems() -> [TrackingItem] {
+            OSSpinLockLock(&lock)
+            let items = trackings.map{$1}
+            OSSpinLockUnlock(&lock)
+            return items
         }
     }
     
@@ -93,9 +100,25 @@ final public class Connector {
                     return .Success(data: data)
                 },
                 completion: {[queue, weak self] result in
+                    guard let trackingItems = self?.lastTracker?.allTrackingItems().filter({$0.decoderCompletion != nil}) else { return }
+                    
+                    let decodedValues = trackingItems.map { item -> Result<Any> in
+                        switch result {
+                        case .Success(let url, let data):
+                            switch item.decoderCompletion!.decoder(url, data) {
+                            case .Success(let d):
+                                return .Success(url: url, data: d as Any)
+                            case .Failed(let error):
+                                return .Failed(url: url, error: error)
+                            }
+                        case .Failed(let url, let error):
+                            return .Failed(url: url, error: error)
+                        }
+                    }
+                    
                     dispatch_async(queue) {
                         guard let task = currentTask where !task.cancelled else { return }
-                        self?.lastTracker?.notifyCompletion(result)
+                        zip(trackingItems, decodedValues).forEach { $0.decoderCompletion!.completion($1) }
                         if self?.lastTask === currentTask {
                             self?.lastTracker = nil
                             self?.lastTask = nil

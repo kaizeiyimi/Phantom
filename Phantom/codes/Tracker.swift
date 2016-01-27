@@ -34,7 +34,6 @@ class DefaultTracker {
     var lock = OS_SPINLOCK_INIT
     var trackings: [TrackingToken: TrackingItem] = [:]
     
-    // TODO: invalid progress?
     func addTracking(queue: dispatch_queue_t?, progress: (ProgressInfo -> Void)) -> TrackingToken? {
         let token = TrackingToken()
         OSSpinLockLock(&lock)
@@ -86,7 +85,6 @@ class DefaultTracker {
         }
     }
     
-    // TODO: 性能
     func notifyCompletion(result: Result<NSData>) {
         OSSpinLockLock(&lock)
         let decodeCompletions = trackings.flatMap{($1.queue, $1.decoderCompletion)}
