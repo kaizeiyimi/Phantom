@@ -91,3 +91,25 @@ final private class Wrapper {
     private let value: Any
     init(_ value: Any) { self.value = value }
 }
+
+
+extension UIImageView {
+    
+    private static var kConnectorKey = "kaizei.yimi.phantom.connectorKey"
+    
+    /// will create one if needed.
+    public var pt_connector: Connector! {
+        get {
+            if let connector = objc_getAssociatedObject(self, &UIImageView.kConnectorKey) as? Connector {
+                return connector
+            } else {
+                let connector = Connector()
+                self.pt_connector = connector
+                return connector
+            }
+        }
+        set {
+            objc_setAssociatedObject(self, &UIImageView.kConnectorKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        }
+    }
+}

@@ -39,6 +39,20 @@ func execute(queue: dispatch_queue_t?, action: () -> Void) {
     }
 }
 
+func wrapDecoder<T>(decoder: (NSURL, NSData) -> DecodeResult<T>)(url: NSURL, data: NSData) -> DecodeResult<Any> {
+    switch decoder(url, data) {
+    case .Success(let result): return .Success(data: result as Any)
+    case .Failed(let error): return .Failed(error: error)
+    }
+}
+
+func wrapCompletion<T>(completion: Result<T> -> Void)(decoded: Result<Any>) -> Void {
+    switch decoded {
+    case .Success(let url, let result): completion(.Success(url: url, data: result as! T))
+    case .Failed(let url, let error): completion(.Failed(url: url, error: error))
+    }
+}
+
 
 /// stolen from SDWebImage's decoder. just change OC to swift.
 public func decodeCGImage(image: CGImage?) -> CGImage? {

@@ -15,9 +15,10 @@ import Foundation
 */
 final public class Connector {
 
-    private var tracker: ConnectorTracker?
+    private var trackingItem: ConnectorTrackingItem?
     
     /// default is *false*. two task are treated same only if **URL** is same, **downloader** is same and **cache** is nil or same.
+    public private(set) weak var tracker: Tracker?
     public var cancelSameURLTask = false
     private var queue = dispatch_get_main_queue()
 
@@ -33,30 +34,19 @@ final public class Connector {
         progress: (ProgressInfo -> Void)? = nil,
         decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void) {
             
-            let wrapDecoder = { (url: NSURL, data: NSData) -> DecodeResult<Any> in
-                switch decoder(url, data) {
-                case .Success(let result): return .Success(data: result as Any)
-                case .Failed(let error): return .Failed(error: error)
-                }
-            }
-            
-            let wrapCompletion = { (decoded: Result<Any>) in
-                switch decoded {
-                case .Success(let url, let result): completion(.Success(url: url, data: result as! T))
-                case .Failed(let url, let error): completion(.Failed(url: url, error: error))
-                }
-            }
+            let decoder = wrapDecoder(decoder)
+            let completion = wrapCompletion(completion)
             
             // judge cancel
-            if let tracker = self.tracker
-                where tracker.url == url && tracker.downloader === downloader
-                    && (cache == nil || tracker.cache === cache)
+            if let item = self.trackingItem
+                where item.url == url && item.downloader === downloader
+                    && (cache == nil || item.cache === cache)
                     && !cancelSameURLTask {
-                        tracker.progress?(PTInvalidProgressInfo)
-                        tracker.progress = progress
-                        tracker.decoder = wrapDecoder
-                        tracker.completion = wrapCompletion
-                        if let progressInfo = tracker.progressInfo {
+                        item.progress?(PTInvalidProgressInfo)
+                        item.progress = progress
+                        item.decoder = decoder
+                        item.completion = completion
+                        if let progressInfo = item.progressInfo {
                             progress?(progressInfo)
                         }
                         return
@@ -64,44 +54,68 @@ final public class Connector {
             
             cancelCurrentTask()
             
-            var tracker: ConnectorTracker!
+            var trackingItem: ConnectorTrackingItem!
             var currentTask: Task!
-            currentTask = downloader.download(url, cache: cache, queue: queue,
+            
+            let tracker = Tracker(trackerQueue: queue)
+            
+            tracker.addTracking(nil,
                 progress: { c, tr, te in
                     guard let task = currentTask where !task.cancelled else { return }
-                    tracker.progressInfo = (c, tr, te)
-                    tracker.progress?((c, tr, te))
+                    trackingItem.progressInfo = (c, tr, te)
+                    trackingItem.progress?((c, tr, te))
                 },
                 decoder: { url, data in
-                    return tracker.decoder(url, data)
+                    return trackingItem.decoder(url, data)
                 },
                 completion: {[weak self] result in
                     guard let task = currentTask where !task.cancelled else { return }
-                    if self?.tracker === tracker {
+                    if self?.trackingItem === trackingItem {
+                        self?.trackingItem = nil
                         self?.tracker = nil
                     }
-                    tracker.completion(result)
+                    trackingItem.completion(result)
                 })
-            
-            tracker = ConnectorTracker(task: currentTask, url: url, progress: progress, decoder: wrapDecoder, completion: wrapCompletion)
-            tracker.downloader = downloader
-            tracker.cache = cache
+            currentTask = tracker.startWithURL(url, downloader: downloader, cache: cache)
             self.tracker = tracker
+            
+//            currentTask = downloader.download(url, cache: cache, queue: queue,
+//                progress: { c, tr, te in
+//                    guard let task = currentTask where !task.cancelled else { return }
+//                    trackingItem.progressInfo = (c, tr, te)
+//                    trackingItem.progress?((c, tr, te))
+//                },
+//                decoder: { url, data in
+//                    return trackingItem.decoder(url, data)
+//                },
+//                completion: {[weak self] result in
+//                    guard let task = currentTask where !task.cancelled else { return }
+//                    if self?.trackingItem === trackingItem {
+//                        self?.trackingItem = nil
+//                    }
+//                    trackingItem.completion(result)
+//                })
+            
+            trackingItem = ConnectorTrackingItem(task: currentTask, url: url, progress: progress, decoder: decoder, completion: completion)
+            trackingItem.downloader = downloader
+            trackingItem.cache = cache
+            self.trackingItem = trackingItem
     }
     
     public func cancelCurrentTask() {
-        tracker?.task.cancel()
-        if let tracker = self.tracker {
-            tracker.progress?(PTInvalidProgressInfo)
-            tracker.completion(.Failed(url: tracker.url, error: canncelledError(tracker.url)))
+        trackingItem?.task.cancel()
+        if let item = self.trackingItem {
+            item.progress?(PTInvalidProgressInfo)
+            item.completion(.Failed(url: item.url, error: canncelledError(item.url)))
         }
+        trackingItem = nil
         tracker = nil
     }
 
 }
 
 
-final private class ConnectorTracker {
+final private class ConnectorTrackingItem {  // only track previous task's state
     
     var url: NSURL
     var task: Task
@@ -122,26 +136,4 @@ final private class ConnectorTracker {
         self.completion = completion
     }
     
-}
-
-
-extension UIImageView {
-    
-    private static var kConnectorKey = "kaizei.yimi.phantom.connectorKey"
-    
-    /// will create one if needed.
-    public var pt_connector: Connector! {
-        get {
-            if let connector = objc_getAssociatedObject(self, &UIImageView.kConnectorKey) as? Connector {
-                return connector
-            } else {
-                let connector = Connector()
-                self.pt_connector = connector
-                return connector
-            }
-        }
-        set {
-            objc_setAssociatedObject(self, &UIImageView.kConnectorKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        }
-    }
 }

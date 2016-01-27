@@ -66,6 +66,26 @@ class ViewController: UIViewController {
                 },
                 animations: animationHandler())
         }
+        
+        imageView.pt_connector.tracker?.addTracking(
+            progress: { info in
+                if info.totalRecievedSize == PTInvalidDownloadProgressMetric {
+                    print("downloading error: \t", info)
+                } else {
+                    print("downloading:\t", info)
+                }
+            },
+            decoder: { _, data in
+                return .Success(data: Int64(data.length))
+            },
+            completion: { result in
+                switch result {
+                case .Success(_, let length):
+                    print("downloaded:\t", length, terminator: "\n\n")
+                case .Failed(_, let error):
+                    print("download failed. ", error, terminator: "\n\n")
+                }
+        })
     }
     
     @IBAction func cancel(sender: AnyObject) {
