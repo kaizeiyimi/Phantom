@@ -11,7 +11,7 @@ import UIKit
 
 extension UIImageView {
     
-    private static var kConnectorKey = "kaizei.yimi.phantom.connectorKey"
+    private static var kConnectorKey = "kaizei.yimi.phantom.UIImageView.connectorKey"
     
     // MARK: - helper method
     public func pt_setImageWithURL(url: NSURL, placeholder: UIImage? = nil, animations:(Result<UIImage> -> Void)? = nil) {
@@ -77,11 +77,11 @@ extension UIImageView {
                             self?.image = nil
                         }
                         
-                        guard let _ = self else { return }
+                        guard let this = self else { return }
                         completion(result)
                         animations?(result)
+                        objc_setAssociatedObject(this, &UIImageView.kConnectorKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
                     })
-                
                 objc_setAssociatedObject(self, &UIImageView.kConnectorKey, connector, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
             }
     }
@@ -99,25 +99,3 @@ final private class Wrapper {
     private let value: Any
     init(_ value: Any) { self.value = value }
 }
-
-
-//extension UIImageView {
-//    
-//    private static var kConnectorKey = "kaizei.yimi.phantom.connectorKey"
-//    
-//    /// will create one if needed.
-//    public var pt_connector: Connector! {
-//        get {
-//            if let connector = objc_getAssociatedObject(self, &UIImageView.kConnectorKey) as? Connector {
-//                return connector
-//            } else {
-//                let connector = Connector()
-//                self.pt_connector = connector
-//                return connector
-//            }
-//        }
-//        set {
-//            objc_setAssociatedObject(self, &UIImageView.kConnectorKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-//        }
-//    }
-//}

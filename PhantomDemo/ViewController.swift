@@ -20,7 +20,6 @@ class ViewController: UIViewController {
     @IBOutlet weak var attachImmediatelySwitch: UISwitch!
     @IBOutlet weak var useCacheSwitch: UISwitch!
     @IBOutlet weak var placeholderSwitch: UISwitch!
-    @IBOutlet weak var cancelSameTaskSwitch: UISwitch!
     
     let normalURL = NSURL(string: "http://i3.3conline.com/images/piclib/201211/21/batch/1/155069/1353489276201kiifd0ycgl_medium.jpg")!
     let GIFURL = NSURL(string: "http://bbs.byr.cn/att/Picture/0/2895510/256")!
@@ -64,26 +63,6 @@ class ViewController: UIViewController {
                 },
                 animations: animationHandler())
         }
-        
-//        imageView.pt_connector.taskTracker?.addTracking(
-//            progress: { info in
-//                if info.totalRecievedSize == PTInvalidDownloadProgressMetric {
-//                    print("downloading error: \t", info)
-//                } else {
-//                    print("downloading:\t", info)
-//                }
-//            },
-//            decoder: { _, data in
-//                return .Success(data: Int64(data.length))
-//            },
-//            completion: { result in
-//                switch result {
-//                case .Success(_, let length):
-//                    print("downloaded:\t", length, terminator: "\n\n")
-//                case .Failed(_, let error):
-//                    print("download failed. ", error, terminator: "\n\n")
-//                }
-//        })
     }
     
     @IBAction func cancel(sender: AnyObject) {
