@@ -34,8 +34,6 @@ class ViewController: UIViewController {
     @IBAction func changeURL(sender: UISegmentedControl) {
         imageView.xly_animatedImagePlayer = nil // remove GIF play
         
-        imageView.pt_connector.cancelSameURLTask = cancelSameTaskSwitch.on
-        
         let placeholder = placeholderSwitch.on ? UIImage(named: "placeholder") : nil
         let wrong = UIImage(named: "wrong")
         let cache: DownloaderCache? = useCacheSwitch.on ? sharedDownloaderCache : nil
@@ -67,29 +65,29 @@ class ViewController: UIViewController {
                 animations: animationHandler())
         }
         
-        imageView.pt_connector.taskTracker?.addTracking(
-            progress: { info in
-                if info.totalRecievedSize == PTInvalidDownloadProgressMetric {
-                    print("downloading error: \t", info)
-                } else {
-                    print("downloading:\t", info)
-                }
-            },
-            decoder: { _, data in
-                return .Success(data: Int64(data.length))
-            },
-            completion: { result in
-                switch result {
-                case .Success(_, let length):
-                    print("downloaded:\t", length, terminator: "\n\n")
-                case .Failed(_, let error):
-                    print("download failed. ", error, terminator: "\n\n")
-                }
-        })
+//        imageView.pt_connector.taskTracker?.addTracking(
+//            progress: { info in
+//                if info.totalRecievedSize == PTInvalidDownloadProgressMetric {
+//                    print("downloading error: \t", info)
+//                } else {
+//                    print("downloading:\t", info)
+//                }
+//            },
+//            decoder: { _, data in
+//                return .Success(data: Int64(data.length))
+//            },
+//            completion: { result in
+//                switch result {
+//                case .Success(_, let length):
+//                    print("downloaded:\t", length, terminator: "\n\n")
+//                case .Failed(_, let error):
+//                    print("download failed. ", error, terminator: "\n\n")
+//                }
+//        })
     }
     
     @IBAction func cancel(sender: AnyObject) {
-        imageView.pt_connector.cancelCurrentTask()
+        imageView.pt_cancelDownloading()
     }
     
     private func progressHandler(attachImmediately: Bool) -> (ProgressInfo -> Void)? {

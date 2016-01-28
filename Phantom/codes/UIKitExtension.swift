@@ -11,6 +11,8 @@ import UIKit
 
 extension UIImageView {
     
+    private static var kConnectorKey = "kaizei.yimi.phantom.connectorKey"
+    
     // MARK: - helper method
     public func pt_setImageWithURL(url: NSURL, placeholder: UIImage? = nil, animations:(Result<UIImage> -> Void)? = nil) {
         pt_setImageWithURL(url, placeholder: placeholder, progress: nil, completion: nil, animations: animations)
@@ -53,14 +55,15 @@ extension UIImageView {
         progress: (ProgressInfo -> Void)?,
         decoder: (NSURL, NSData) -> DecodeResult<T>, completion: Result<T> -> Void,
         animations:(Result<T> -> Void)? = nil) {
+            pt_cancelDownloading()
+            image = placeholder
             
             if cache != nil, let decoded = (sharedDecodedCache.objectForKey(url) as? Wrapper)?.value as? T {
-                pt_connector.cancelCurrentTask()
                 progress?(PTInvalidProgressInfo)
                 completion(.Success(url: url, data: decoded))
                 animations?(.Success(url: url, data: decoded))
             } else {
-                pt_connector.connect(url, downloader: downloader ?? sharedDownloader, cache: cache,
+                let connector = Connector.connect(url, queue: dispatch_get_main_queue(), downloader: downloader, cache: cache)(
                     progress: {[weak self] c, tr, te in
                         guard let progress = progress, _ = self else { return }
                         progress(currentSize: c, totalRecievedSize: tr, totalExpectedSize: te)
@@ -78,10 +81,15 @@ extension UIImageView {
                         completion(result)
                         animations?(result)
                     })
-                image = placeholder
+                
+                objc_setAssociatedObject(self, &UIImageView.kConnectorKey, connector, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
             }
     }
     
+    
+    public func pt_cancelDownloading() {
+        objc_getAssociatedObject(self, &UIImageView.kConnectorKey)?.performSelector("cancelCurrentTask")
+    }
 }
 
 private let sharedDecodedCache = NSCache()
@@ -93,23 +101,23 @@ final private class Wrapper {
 }
 
 
-extension UIImageView {
-    
-    private static var kConnectorKey = "kaizei.yimi.phantom.connectorKey"
-    
-    /// will create one if needed.
-    public var pt_connector: Connector! {
-        get {
-            if let connector = objc_getAssociatedObject(self, &UIImageView.kConnectorKey) as? Connector {
-                return connector
-            } else {
-                let connector = Connector()
-                self.pt_connector = connector
-                return connector
-            }
-        }
-        set {
-            objc_setAssociatedObject(self, &UIImageView.kConnectorKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        }
-    }
-}
+//extension UIImageView {
+//    
+//    private static var kConnectorKey = "kaizei.yimi.phantom.connectorKey"
+//    
+//    /// will create one if needed.
+//    public var pt_connector: Connector! {
+//        get {
+//            if let connector = objc_getAssociatedObject(self, &UIImageView.kConnectorKey) as? Connector {
+//                return connector
+//            } else {
+//                let connector = Connector()
+//                self.pt_connector = connector
+//                return connector
+//            }
+//        }
+//        set {
+//            objc_setAssociatedObject(self, &UIImageView.kConnectorKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+//        }
+//    }
+//}

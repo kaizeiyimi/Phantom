@@ -37,7 +37,7 @@ final public class TaskTracker {
     private var trackings: [TrackingToken: TrackingItem] = [:]
     private let trackerQueue: dispatch_queue_t
     
-    private init(trackerQueue: dispatch_queue_t? = nil) {
+    init(trackerQueue: dispatch_queue_t? = nil) {
         self.trackerQueue = trackerQueue ?? dispatch_queue_create("Phantom.TaskTracker.queue", DISPATCH_QUEUE_CONCURRENT)
     }
     
@@ -67,7 +67,7 @@ final public class TaskTracker {
     }
     
     // MARK: progress, decoder and completion wrappers.
-    private func notifyProgress(progressInfo: ProgressInfo) {
+    func notifyProgress(progressInfo: ProgressInfo) {
         OSSpinLockLock(&lock)
         self.progressInfo = progressInfo
         let items = trackings.values
@@ -79,7 +79,7 @@ final public class TaskTracker {
         return .Success(data: data)
     }
     
-    private func notifyCompletion(result: Result<NSData>) {
+    func notifyCompletion(result: Result<NSData>) {
         OSSpinLockLock(&lock)
         self.result = result
         let items = trackings.values
@@ -149,7 +149,7 @@ final public class ResultTracker<T> {
     private var trackings: [TrackingToken: ResultTrackingItem<T>] = [:]
     private let trackerQueue: dispatch_queue_t
     
-    private init(trackerQueue: dispatch_queue_t? = nil) {
+    init(trackerQueue: dispatch_queue_t? = nil) {
         self.trackerQueue = trackerQueue ?? dispatch_queue_create("Phantom.ResultTracker.queue", DISPATCH_QUEUE_CONCURRENT)
     }
     
@@ -179,7 +179,7 @@ final public class ResultTracker<T> {
     }
     
     // MARK: progress, decoder and completion wrappers.
-    private func notifyProgress(progressInfo: ProgressInfo) {
+    func notifyProgress(progressInfo: ProgressInfo) {
         OSSpinLockLock(&lock)
         self.progressInfo = progressInfo
         let items = trackings.values
@@ -187,7 +187,7 @@ final public class ResultTracker<T> {
         items.forEach{ notifyProgrss($0, progressInfo: progressInfo) }
     }
     
-    private func notifyCompletion(result: Result<T>) {
+    func notifyCompletion(result: Result<T>) {
         OSSpinLockLock(&lock)
         self.result = result
         let items = trackings.values
