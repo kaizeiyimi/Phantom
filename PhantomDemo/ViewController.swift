@@ -67,7 +67,7 @@ class ViewController: UIViewController {
                 animations: animationHandler())
         }
         
-        imageView.pt_connector.tracker?.addTracking(
+        imageView.pt_connector.taskTracker?.addTracking(
             progress: { info in
                 if info.totalRecievedSize == PTInvalidDownloadProgressMetric {
                     print("downloading error: \t", info)

@@ -20,8 +20,8 @@ public func ==(lhs: TrackingToken, rhs: TrackingToken) -> Bool {
     return lhs === rhs
 }
 
-// MARK: - Tracker
-final public class Tracker {
+// MARK: - TaskTracker.
+final public class TaskTracker {
     
     struct TrackingItem {
         let queue: dispatch_queue_t?
@@ -29,25 +29,32 @@ final public class Tracker {
         let decoderCompletion: (decoder: (NSURL, NSData) -> DecodeResult<Any>, completion: Result<Any> -> Void)?
     }
     
+    public private(set) var task: Task!
     public private(set) var progressInfo: ProgressInfo?
     public private(set) var result: Result<NSData>?
-    
-    private var url: NSURL?
     
     private var lock = OS_SPINLOCK_INIT
     private var trackings: [TrackingToken: TrackingItem] = [:]
     private let trackerQueue: dispatch_queue_t
     
-    init(trackerQueue: dispatch_queue_t? = nil) {
-        self.trackerQueue = trackerQueue ?? dispatch_queue_create("Phantom.tracker.queue", DISPATCH_QUEUE_CONCURRENT)
+    private init(trackerQueue: dispatch_queue_t? = nil) {
+        self.trackerQueue = trackerQueue ?? dispatch_queue_create("Phantom.TaskTracker.queue", DISPATCH_QUEUE_CONCURRENT)
+    }
+    
+    public static func track(url: NSURL, trackerQueue: dispatch_queue_t? = nil, downloader: Downloader = sharedDownloader, cache: DownloaderCache? = nil) -> TaskTracker {
+        let tracker = TaskTracker()
+        tracker.task = downloader.download(url, cache: cache, queue: tracker.trackerQueue,
+            progress: tracker.notifyProgress, decoder: tracker.decoder, completion: tracker.notifyCompletion)
+        return tracker
     }
     
     // MARK: tracking
-    public func addTracking(queue: dispatch_queue_t? = nil, progress: (ProgressInfo -> Void)) -> TrackingToken? {
+    /// `queue` default to trackerQueue.
+    public func addTracking(queue: dispatch_queue_t? = nil, progress: (ProgressInfo -> Void)) -> TrackingToken {
         return addTracking(TrackingItem(queue: queue, progress: progress, decoderCompletion: nil))
     }
     
-    public func addTracking<T>(queue: dispatch_queue_t? = nil, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken? {
+    public func addTracking<T>(queue: dispatch_queue_t? = nil, progress: (ProgressInfo -> Void)?, decoder: (NSURL, NSData) -> DecodeResult<T> , completion: Result<T> -> Void) -> TrackingToken {
         return addTracking(TrackingItem(queue: queue, progress: progress, decoderCompletion: (wrapDecoder(decoder), wrapCompletion(completion))))
     }
     
@@ -56,15 +63,6 @@ final public class Tracker {
             OSSpinLockLock(&lock)
             trackings.removeValueForKey(token)
             OSSpinLockUnlock(&lock)
-        }
-    }
-    
-    public func startWithURL(url: NSURL, downloader: Downloader = sharedDownloader, cache: DownloaderCache? = nil) -> Task? {
-        if self.url == nil { // only serve one task
-            self.url = url
-            return downloader.download(url, cache: cache, queue: trackerQueue, progress: notifyProgress, decoder: decoder, completion: notifyCompletion)
-        } else {
-            return nil
         }
     }
     
@@ -90,7 +88,7 @@ final public class Tracker {
     }
     
     // MARK: private methods
-    private func addTracking(item: TrackingItem) -> TrackingToken? {
+    private func addTracking(item: TrackingItem) -> TrackingToken {
         OSSpinLockLock(&lock)
         let token = TrackingToken()
         trackings[token] = item
@@ -128,5 +126,101 @@ final public class Tracker {
                 decoderCompletion.completion(decode(result, decoder: decoderCompletion.decoder))
             }
         }
+    }
+}
+
+
+
+// MARK: - ResultTracker. only track progress and result
+
+struct ResultTrackingItem<T> {
+    let queue: dispatch_queue_t?
+    let progress: (ProgressInfo -> Void)?
+    let completion: (Result<T> -> Void)?
+}
+
+final public class ResultTracker<T> {
+    
+    public private(set) var task: Task!
+    public private(set) var progressInfo: ProgressInfo?
+    public private(set) var result: Result<T>?
+    
+    private var lock = OS_SPINLOCK_INIT
+    private var trackings: [TrackingToken: ResultTrackingItem<T>] = [:]
+    private let trackerQueue: dispatch_queue_t
+    
+    private init(trackerQueue: dispatch_queue_t? = nil) {
+        self.trackerQueue = trackerQueue ?? dispatch_queue_create("Phantom.ResultTracker.queue", DISPATCH_QUEUE_CONCURRENT)
+    }
+    
+    public static func track(url: NSURL, trackerQueue: dispatch_queue_t? = nil, downloader: Downloader = sharedDownloader, cache: DownloaderCache? = nil, decoder: (NSURL, NSData) -> DecodeResult<T>) -> ResultTracker<T> {
+        let tracker = ResultTracker<T>(trackerQueue: trackerQueue)
+        tracker.task = downloader.download(url, cache: cache, queue: tracker.trackerQueue,
+            progress: tracker.notifyProgress, decoder: decoder, completion: tracker.notifyCompletion)
+        return tracker
+    }
+    
+    // MARK: tracking
+    /// `queue` default to trackerQueue.
+    public func addTracking(queue: dispatch_queue_t? = nil, progress: (ProgressInfo -> Void)) -> TrackingToken {
+        return addTracking(ResultTrackingItem<T>(queue: queue, progress: progress, completion: nil))
+    }
+    
+    public func addTracking(queue: dispatch_queue_t? = nil, progress: (ProgressInfo -> Void)?, completion: Result<T> -> Void) -> TrackingToken {
+        return addTracking(ResultTrackingItem(queue: queue, progress: progress, completion: completion))
+    }
+    
+    public func removeTracking(token: TrackingToken?) {
+        if let token = token {
+            OSSpinLockLock(&lock)
+            trackings.removeValueForKey(token)
+            OSSpinLockUnlock(&lock)
+        }
+    }
+    
+    // MARK: progress, decoder and completion wrappers.
+    private func notifyProgress(progressInfo: ProgressInfo) {
+        OSSpinLockLock(&lock)
+        self.progressInfo = progressInfo
+        let items = trackings.values
+        OSSpinLockUnlock(&lock)
+        items.forEach{ notifyProgrss($0, progressInfo: progressInfo) }
+    }
+    
+    private func notifyCompletion(result: Result<T>) {
+        OSSpinLockLock(&lock)
+        self.result = result
+        let items = trackings.values
+        OSSpinLockUnlock(&lock)
+        items.forEach{ notifyCompletion($0, result: result) }
+    }
+    
+    // MARK: private methods
+    private func addTracking(item: ResultTrackingItem<T>) -> TrackingToken {
+        OSSpinLockLock(&lock)
+        let token = TrackingToken()
+        trackings[token] = item
+        let progressInfo = self.progressInfo
+        let result = self.result
+        OSSpinLockUnlock(&lock)
+        
+        if let progressInfo = progressInfo {
+            notifyProgrss(item, progressInfo: progressInfo)
+        }
+        if let result = result {
+            notifyCompletion(item, result: result)
+        }
+        
+        return token
+    }
+    
+    private func notifyProgrss(item: ResultTrackingItem<T>, progressInfo: ProgressInfo) {
+        guard let progress = item.progress else { return }
+        dispatch_async(item.queue ?? trackerQueue){ progress(progressInfo) }
+    }
+    
+    private func notifyCompletion(item: ResultTrackingItem<T>, result: Result<T>) {
+        guard let completion = item.completion else { return }
+        dispatch_async(item.queue ?? trackerQueue) { completion(result) }
     }
 }

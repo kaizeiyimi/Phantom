@@ -15,11 +15,11 @@ import Foundation
 */
 final public class Connector {
 
-    private var trackingItem: ConnectorTrackingItem?
-    
     /// default is *false*. two task are treated same only if **URL** is same, **downloader** is same and **cache** is nil or same.
-    public private(set) weak var tracker: Tracker?
     public var cancelSameURLTask = false
+    public private(set) weak var taskTracker: TaskTracker?
+
+    private var trackingItem: ConnectorTrackingItem?
     private var queue = dispatch_get_main_queue()
 
     public init(queue: dispatch_queue_t = dispatch_get_main_queue()) {
@@ -57,9 +57,8 @@ final public class Connector {
             var trackingItem: ConnectorTrackingItem!
             var currentTask: Task!
             
-            let tracker = Tracker(trackerQueue: queue)
-            
-            tracker.addTracking(nil,
+            let tracker = TaskTracker.track(url, trackerQueue: queue, downloader: downloader, cache: cache)
+            tracker.addTracking(queue,
                 progress: { c, tr, te in
                     guard let task = currentTask where !task.cancelled else { return }
                     trackingItem.progressInfo = (c, tr, te)
@@ -72,29 +71,12 @@ final public class Connector {
                     guard let task = currentTask where !task.cancelled else { return }
                     if self?.trackingItem === trackingItem {
                         self?.trackingItem = nil
-                        self?.tracker = nil
+                        self?.taskTracker = nil
                     }
                     trackingItem.completion(result)
                 })
-            currentTask = tracker.startWithURL(url, downloader: downloader, cache: cache)
-            self.tracker = tracker
-            
-//            currentTask = downloader.download(url, cache: cache, queue: queue,
-//                progress: { c, tr, te in
-//                    guard let task = currentTask where !task.cancelled else { return }
-//                    trackingItem.progressInfo = (c, tr, te)
-//                    trackingItem.progress?((c, tr, te))
-//                },
-//                decoder: { url, data in
-//                    return trackingItem.decoder(url, data)
-//                },
-//                completion: {[weak self] result in
-//                    guard let task = currentTask where !task.cancelled else { return }
-//                    if self?.trackingItem === trackingItem {
-//                        self?.trackingItem = nil
-//                    }
-//                    trackingItem.completion(result)
-//                })
+            currentTask = tracker.task
+            self.taskTracker = tracker
             
             trackingItem = ConnectorTrackingItem(task: currentTask, url: url, progress: progress, decoder: decoder, completion: completion)
             trackingItem.downloader = downloader
@@ -109,7 +91,7 @@ final public class Connector {
             item.completion(.Failed(url: item.url, error: canncelledError(item.url)))
         }
         trackingItem = nil
-        tracker = nil
+        taskTracker = nil
     }
 
 }
