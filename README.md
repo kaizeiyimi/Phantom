@@ -1,3 +1,7 @@
+## IMPORTANT
+
+under developing and testing. not stable.
+
 ## Phantom ##
 
 **not only** another wheel for downloading web image. `Phantom` is more than that.
